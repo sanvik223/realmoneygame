@@ -1,0 +1,3922 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real Money Game</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #4361ee;
+      --secondary-color: #3f37c9;
+      --accent-color: #4895ef;
+      --success-color: #4cc9f0;
+      --danger-color: #f72585;
+      --warning-color: #f8961e;
+      --light-color: #f8f9fa;
+      --dark-color: #212529;
+      --gold-color: #ffd700;
+      --glass-bg: rgba(255, 255, 255, 0.1);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      --onyx-color: #353839;
+      --wood-color: #5c4033;
+      --game-card-color: #938c6e;
+      --ludo-color: #FF5733;
+      --chess-color: #33A1FF;
+      --carrom-color: #33FF57;
+      --bead16-color: #A133FF;
+    }
+
+    /* Splash Screen Styles */
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d, #1a2a6c);
+      background-size: 300% 300%;
+      animation: gradientBG 8s ease infinite;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .splash-logo {
+      font-size: 3.5rem;
+      font-weight: 700;
+      color: white;
+      text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      margin-bottom: 2rem;
+      text-align: center;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    .splash-loader {
+      width: 80px;
+      height: 80px;
+      border: 8px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--gold-color);
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .splash-subtext {
+      margin-top: 2rem;
+      color: white;
+      font-size: 1.2rem;
+      opacity: 0.8;
+    }
+
+    /* Main App Styles */
+    body {
+      background: url('https://i.postimg.cc/sXccW6Nj/brown-wooden-textured-flooring-background.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      overflow: auto;
+      display: none; /* Initially hidden until splash screen finishes */
+      position: relative;
+    }
+
+    /* Auth Container Styles */
+    .auth-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 30px;
+      border-radius: 12px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      display: none;
+      margin: 20px auto;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .auth-container h2 {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .auth-container .form-control {
+      margin-bottom: 20px;
+    }
+
+    .auth-container button {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .form-switcher {
+      text-align: center;
+      margin-top: 20px;
+      cursor: pointer;
+      color: var(--gold-color);
+      font-weight: 500;
+    }
+
+    .form-switcher span {
+      text-decoration: underline;
+    }
+
+    /* Home Page Styles */
+    .home-page {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      padding: 20px;
+      box-sizing: border-box;
+      position: relative;
+      overflow-y: auto;
+    }
+
+    /* Top Bar Styles */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 15px 25px;
+      margin-bottom: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      height: 70px;
+      width: 100%;
+      position: relative;
+      margin-top: 10px;
+    }
+
+    .profile-btn {
+      position: absolute;
+      left: 20px;
+      background: none;
+      border: none;
+      padding: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+
+    .profile-btn img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .message-btn {
+      position: absolute;
+      left: 70px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+    }
+
+    .balance-display-container {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .deposit-btn-container {
+      position: absolute;
+      right: 20px;
+    }
+
+    /* Popup Styles */
+    .popup-page {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: url('https://i.postimg.cc/sXccW6Nj/brown-wooden-textured-flooring-background.jpg') no-repeat center center;
+      background-size: cover;
+      z-index: 2000;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      max-height: 80vh;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .deposit-popup {
+      width: 60%;
+    }
+
+    .withdraw-popup, .profile-popup, .history-popup, .contact-popup, .profile-gallery-popup {
+      width: 50%;
+    }
+
+    .close-popup {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .popup-content {
+      margin-top: 30px;
+      color: white;
+      position: relative;
+      z-index: 2;
+    }
+
+    .popup-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      border-radius: 15px;
+      z-index: 1;
+    }
+
+    /* Navigation Bar Styles */
+    .nav-bar {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 95%;
+      max-width: 500px;
+      display: flex;
+      justify-content: space-around;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      border-radius: 25px;
+      padding: 10px 0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      z-index: 100;
+      height: 60px;
+    }
+
+    .nav-bar button {
+      background: transparent;
+      border: none;
+      color: white;
+      padding: 8px 15px;
+      border-radius: 15px;
+      transition: all 0.3s;
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: 23%;
+      height: 100%;
+    }
+
+    .nav-bar button i {
+      font-size: 18px;
+    }
+
+    .nav-bar button span {
+      font-size: 12px;
+    }
+
+    .nav-bar button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-bar button.active {
+      background: rgba(255, 215, 0, 0.3);
+      color: var(--gold-color);
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(255, 215, 0, 0.2);
+    }
+
+    /* Popup Menu Styles */
+    #popup-menu {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      max-width: 400px;
+      background: url('https://i.postimg.cc/sXccW6Nj/brown-wooden-textured-flooring-background.jpg') no-repeat center center;
+      background-size: cover;
+      z-index: 1000;
+      display: none;
+      border-radius: 15px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    #popup-menu::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      z-index: 1;
+    }
+
+    #popup-menu h3 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: white;
+      font-weight: 600;
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .popup-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 15px;
+      margin: 8px 0;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+      z-index: 2;
+    }
+
+    .popup-menu-item i {
+      width: 24px;
+      text-align: center;
+    }
+
+    .popup-menu-item:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    #popup-balance {
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: var(--gold-color);
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Overlay Styles */
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      display: none;
+      z-index: 999;
+    }
+
+    /* Transaction Card Styles */
+    .transaction-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      transition: all 0.3s;
+      backdrop-filter: blur(5px);
+    }
+
+    .transaction-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .transaction-card h5 {
+      color: var(--gold-color);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .status-pending { color: var(--warning-color); }
+    .status-confirmed { color: var(--success-color); }
+    .status-rejected { color: var(--danger-color); }
+    
+    /* Payment Card Styles */
+    .payment-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+      cursor: pointer;
+      width: calc(50% - 10px);
+      display: inline-block;
+      margin-right: 10px;
+      box-sizing: border-box;
+      backdrop-filter: blur(5px);
+    }
+    
+    .payment-card:nth-child(2n) {
+      margin-right: 0;
+    }
+    
+    .payment-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+    
+    .payment-card.selected {
+      border-color: var(--gold-color);
+      background: rgba(255, 215, 0, 0.1);
+    }
+    
+    .payment-card h5 {
+      color: var(--gold-color);
+      margin-bottom: 10px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .payment-card p {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    .payment-methods-container {
+      margin-bottom: 20px;
+    }
+    
+    .info-text {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    
+    .account-type {
+      background: rgba(255, 215, 0, 0.2);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      display: inline-block;
+      margin-top: 5px;
+      color: var(--gold-color);
+    }
+    
+    .alert-warning {
+      background-color: rgba(248, 150, 30, 0.2);
+      border-color: rgba(248, 150, 30, 0.3);
+      color: var(--warning-color);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    
+    /* Button Styles */
+    .deposit-btn {
+      background: linear-gradient(to right, #FFD700, #D4AF37);
+      color: #000;
+      font-weight: 600;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      transition: all 0.3s;
+      width: 100px;
+    }
+    
+    .deposit-btn:hover {
+      background: linear-gradient(to right, #D4AF37, #FFD700);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+    }
+    
+    .btn-primary {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    
+    .btn-success {
+      background-color: var(--success-color);
+      border-color: var(--success-color);
+    }
+    
+    .btn-danger {
+      background-color: var(--danger-color);
+      border-color: var(--danger-color);
+    }
+    
+    .btn-warning {
+      background-color: var(--warning-color);
+      border-color: var(--warning-color);
+    }
+    
+    .btn-info {
+      background-color: var(--accent-color);
+      border-color: var(--accent-color);
+    }
+    
+    /* Form Styles */
+    .form-control {
+      background-color: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 12px 15px;
+      border-radius: 10px;
+      backdrop-filter: blur(5px);
+    }
+    
+    .form-control:focus {
+      background-color: rgba(255, 255, 255, 0.2);
+      border-color: var(--accent-color);
+      color: white;
+      box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
+    }
+    
+    label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      display: block;
+    }
+    
+    .balance-display {
+      font-size: 18px;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 8px 15px;
+      border-radius: 20px;
+      backdrop-filter: blur(5px);
+    }
+    
+    /* Page Title Styles */
+    .page-title {
+      text-align: center;
+      margin-bottom: 25px;
+      font-weight: 600;
+      color: white;
+      position: relative;
+      padding-bottom: 10px;
+    }
+    
+    .page-title::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 3px;
+      background: var(--gold-color);
+      border-radius: 3px;
+    }
+    
+    /* Loading Spinner Styles */
+    .spinner-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--gold-color);
+      animation: spin 1s ease-in-out infinite;
+    }
+
+   /* Game Cards Styles */
+    .game-cards-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      padding: 10px;
+      margin-top: 40px;
+    }
+
+    .game-card {
+      aspect-ratio: 1/1.1;
+      transform: scale(0.70);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 7px rgba(0, 0, 0, 0.2);
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    /* Ludo Card */
+    .game-card[onclick*="ludo"] {
+      background: linear-gradient(to right, #FF416C, #FF4B2B);
+    }
+
+    /* Carrom Card */
+    .game-card[onclick*="carrom"] {
+      background: linear-gradient(to right, #4B6CB7, #182848);
+    }
+
+    /* Chess Card */
+    .game-card[onclick*="chess"] {
+      background: linear-gradient(to right, #11998E, #38EF7D);
+    }
+
+    /* Bead 16 Card */
+    .game-card[onclick*="bead16"] {
+      background: linear-gradient(to right, #7B4397, #DC2430);
+    }
+
+    .game-card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .game-logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 15px;
+      object-fit: cover;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    .game-card:hover .game-logo {
+      transform: scale(1.1);
+    }
+
+    .game-text {
+      flex: 1;
+      text-align: left;
+      padding-left: 15px;
+    }
+
+    .game-title {
+      font-weight: 700;
+      font-size: 16px;
+      color: white;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      margin: 0;
+    }
+
+    .game-card:hover .game-title {
+      color: #FFD700;
+    }
+
+    /* Game Card Layout */
+    .game-card-row {
+      display: flex;
+      gap: 15px;
+      width: 100%;
+    }
+
+    .game-card-single {
+      width: 100%;
+    }
+
+    .game-card-double {
+      width: calc(50% - 7.5px);
+    }
+
+    /* Payment Method Rows */
+    .payment-method-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      width: 100%;
+    }
+
+    /* Profile Page Styles */
+    .profile-form {
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .profile-header {
+      text-align: center;
+      margin-bottom: 25px;
+      position: relative;
+    }
+
+    .profile-header h2 {
+      color: var(--gold-color);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .profile-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255, 215, 0, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 15px;
+      font-size: 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .profile-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .profile-avatar .add-photo {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.7);
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    /* Game Popup Styles */
+    .game-popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60%;
+      height: 70%;
+      z-index: 2000;
+      border-radius: 15px;
+      overflow: hidden;
+      border: 5px solid var(--wood-color);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      background: url('https://i.postimg.cc/9f3TghpB/Wallpaper-Kemra-Black-Wood-1-jpg-optimal.jpg') no-repeat center center;
+      background-size: cover;
+    }
+
+    .game-popup::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1;
+    }
+
+    .game-popup-content {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 2;
+    }
+
+    .game-slider-container {
+      display: flex;
+      height: 100%;
+      transition: transform 0.5s ease;
+      touch-action: pan-y;
+    }
+
+    .game-slide {
+      min-width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0;
+      box-sizing: border-box;
+      cursor: pointer;
+    }
+
+    .game-image-frame {
+      width: 90%;
+      height: 95%;
+      border: 5px solid var(--gold-color);
+      border-radius: 15px;
+      overflow: hidden;
+      margin-bottom: 10px;
+      margin-top: 10px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .game-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center center;
+      display: block;
+    }
+
+    .game-reward-card {
+      width: 75%;
+      background-color: var(--game-card-color);
+      border-radius: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 15px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      margin-bottom: 3px;
+      margin-top: 5px;
+    }
+
+    .game-reward-title {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: var(--gold-color);
+    }
+
+    .game-reward-image {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 20px;
+    }
+
+    .game-reward-box {
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 5px 15px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      text-align: center;
+      width: 70%;
+      min-height: 40px;
+    }
+
+    .game-reward-label {
+      font-size: 16px;
+      margin-bottom: 5px;
+    }
+
+    .game-reward-amount {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--gold-color);
+    }
+
+    .game-entry-fee {
+      background-color: var(--game-card-color);
+      padding: 5px 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+      margin-bottom: 10px;
+      text-align: center;
+      width: 70%;
+      min-height: 40px;
+    }
+
+    .game-slider-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      color: white;
+      font-size: 24px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .game-slider-prev {
+      left: 10px;
+    }
+
+    .game-slider-next {
+      right: 10px;
+    }
+
+    .game-slider-prev:hover, .game-slider-next:hover {
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    /* Play Button Styles */
+    .play-btn {
+      margin-top: 15px;
+      width: 80%;
+      padding: 10px;
+      font-weight: bold;
+      background: linear-gradient(to right, #4CAF50, #2E7D32);
+      border: none;
+      border-radius: 25px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      transition: all 0.3s;
+    }
+
+    .play-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+    }
+
+   .game-play-options {
+  text-align: center;
+  padding: 20px; /* Increased from 20px */
+  position: absolute;
+  top: 40%; 
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%; /* Increased from 80% */
+  z-index: 10;
+  overflow-y: auto;
+  max-height: 80%; 
+  border-radius: 10px; /* Optional: adds rounded corners */
+}
+
+    .play-mode-btn {
+      margin: 10px auto;
+      padding: 15px;
+      width: 90%;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: all 0.3s ease-in-out;
+    }
+
+    .play-mode-btn i {
+      margin-right: 10px;
+    }
+
+    .play-mode-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    }
+
+    .game-code-section {
+      text-align: center;
+      position: absolute;
+      top: 70%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      z-index: 10;
+      background: rgba(0,0,0,0.7);
+      padding: 20px;
+      border-radius: 15px;
+      margin-top: 20px;
+    }
+
+    .game-code {
+      font-size: 24px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      color: #FFD700;
+      margin: 15px 0;
+      padding: 10px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 5px;
+    }
+
+    .players-joined {
+      margin: 15px 0;
+      font-size: 18px;
+    }
+
+    .start-game-btn {
+      margin-top: 20px;
+      padding: 12px 25px;
+      font-size: 18px;
+    }
+
+    /* Waiting Room Styles */
+    .waiting-room {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      background: rgba(0,0,0,0.8);
+      border-radius: 15px;
+      padding: 20px;
+      text-align: center;
+      z-index: 20;
+    }
+
+    .waiting-header {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: var(--gold-color);
+    }
+
+    .player-box {
+      display: flex;
+      justify-content: space-between;
+      margin: 20px 0;
+    }
+
+    .player-container {
+      width: 45%;
+      text-align: center;
+    }
+
+    .player-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      margin: 0 auto 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      overflow: hidden;
+    }
+
+    .player-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .player-name {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+
+    .vs-text {
+      font-size: 36px;
+      font-weight: bold;
+      color: var(--danger-color);
+      align-self: center;
+    }
+
+    .scrolling-avatars {
+      width: 100px;
+      height: 100px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      margin: 0 auto;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .scrolling-avatars img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+
+    .start-game-btn-waiting {
+      margin-top: 30px;
+      padding: 15px 30px;
+      font-size: 20px;
+    }
+
+    /* Private Room Styles */
+    .private-room {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      background: rgba(0,0,0,0.8);
+      border-radius: 15px;
+      padding: 20px;
+      text-align: center;
+      z-index: 20;
+      overflow-y: auto;
+      max-height: 80%;
+    }
+
+    .room-code {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--gold-color);
+      margin: 15px 0;
+    }
+
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .player-box-room {
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 15px;
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .player-avatar-room {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.2);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      overflow: hidden;
+    }
+
+    .player-avatar-room img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .player-name-room {
+      font-size: 16px;
+    }
+
+    /* Back Button Style */
+    .back-btn-top-left {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.3);
+      border: none;
+      border-radius: 50px;
+      padding: 8px 12px;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.3s;
+    }
+    
+    .back-btn-top-left:hover {
+      background: rgba(0, 0, 0, 0.6);
+      transform: scale(1.05);
+    }
+    
+    .opponent-info-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  z-index: 100;
+  width: 80%;
+  max-width: 300px;
+}
+
+.opponent-info-container .player-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 15px 0;
+}
+
+.opponent-info-container .player-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.opponent-info-container .player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.opponent-info-container h3 {
+  color: var(--gold-color);
+  margin-bottom: 15px;
+}
+
+.opponent-info-container .player-name {
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.opponent-info-container p {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+    /* Contact Us Page Styles */
+    .contact-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .contact-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      font-size: 16px;
+      text-align: left;
+      transition: all 0.3s;
+    }
+
+    .contact-btn i {
+      font-size: 20px;
+      width: 30px;
+      text-align: center;
+    }
+
+    .contact-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .facebook-btn {
+      background: linear-gradient(to right, #3b5998, #4267B2);
+    }
+
+    .messenger-btn {
+      background: linear-gradient(to right, #006AFF, #0084FF);
+    }
+
+    .whatsapp-btn {
+      background: linear-gradient(to right, #25D366, #128C7E);
+    }
+
+    .telegram-btn {
+      background: linear-gradient(to right, #0088cc, #2CA5E0);
+    }
+
+    /* Profile Gallery Styles */
+    .profile-gallery {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .profile-gallery-item {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 5px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+
+    .profile-gallery-item:hover {
+      transform: scale(1.05);
+      border-color: var(--gold-color);
+    }
+
+    .profile-gallery-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Banner Styles */
+#banner-container {
+  width: 100%;
+  height: 130px;
+  overflow: hidden;
+  position: relative;
+  border-radius: 12px; /* container এর জন্যও কার্ভ */
+  box-sizing: border-box; /* padding/border হিসেব করবে */
+}
+
+#banner-slider {
+  display: flex;
+  transition: transform 0.5s ease-in-out;
+  height: 130px;
+}
+
+.banner-slide {
+  width: 100%; /* 100% width, একবারে একটি স্লাইড */
+  height: 130px;
+  flex-shrink: 0;
+}
+
+.banner-slide img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+  border-radius: 12px; /* ছবির চারপাশ কার্ভ */
+  box-sizing: border-box; /* padding/border যোগ করবে না */
+}
+
+    /* Payment Method Logo Styles */
+    .payment-logo {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .deposit-popup {
+        width: 90%;
+      }
+      
+      .withdraw-popup, .profile-popup, .history-popup, .contact-popup, .profile-gallery-popup {
+        width: 90%;
+      }
+      
+      .payment-card {
+        width: 100%;
+        margin-right: 0;
+      }
+
+      .game-card-double {
+        width: 100%;
+      }
+
+      .game-card-row {
+        flex-direction: column;
+      }
+
+      .nav-bar {
+        height: 55px;
+      }
+
+      .nav-bar button {
+        padding: 5px 10px;
+      }
+
+      .nav-bar button i {
+        font-size: 16px;
+      }
+
+      .nav-bar button span {
+        font-size: 10px;
+      }
+
+      .payment-method-row {
+        flex-direction: column;
+      }
+
+      .game-popup {
+        width: 90%;
+        height: 60%;
+      }
+
+      .game-reward-card {
+        width: 90%;
+      }
+      
+      .game-reward-box, .game-entry-fee {
+        width: 90%;
+      }
+      
+      .game-image-frame {
+        height: 30%;
+      }
+      .play-btn {
+        display: none !important;
+      }
+      
+      .game-play-options, .game-code-section {
+        top: 40%;
+      }
+      
+      .player-avatar, .scrolling-avatars {
+        width: 80px;
+        height: 80px;
+      }
+      
+      .vs-text {
+        font-size: 24px;
+      }
+    }
+    
+    /* Touch slider styles */
+    .game-slider-container {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Keyboard input styles */
+    .code-input-container {
+      margin-top: 20px;
+      width: 100%;
+      position: relative;
+    }
+    
+    .code-input-btn {
+      margin-top: 10px;
+      width: 100%;
+    }
+    
+  </style>
+</head>
+
+<body>
+  <!-- Splash Screen -->
+  <div id="splash-screen">
+    <div class="splash-logo">Real Money Game</div>
+    <div class="splash-loader"></div>
+    <div class="splash-subtext">Loading...</div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div class="spinner-container" id="spinner">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Overlay -->
+  <div id="overlay" onclick="hideAllPopups()"></div>
+
+  <!-- Game Popups -->
+  <div class="game-popup" id="ludo-popup">
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="game-popup-content">
+      <button class="back-btn-top-left" id="ludo-back-btn" onclick="backToGamePage('ludo')" style="display: none;">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      
+      <div class="game-slider-container" id="ludo-slider">
+        <!-- Slides will be added dynamically -->
+      </div>
+      <button class="game-slider-nav game-slider-prev" id="ludo-prev-btn" onclick="prevSlide('ludo')">❮</button>
+      <button class="game-slider-nav game-slider-next" id="ludo-next-btn" onclick="nextSlide('ludo')">❯</button>
+      
+      <div class="game-play-options" style="display: none;">
+        <button class="btn btn-primary play-mode-btn" onclick="createPrivateRoom('ludo')">
+          <i class="fas fa-users"></i> Create Private Room
+        </button>
+        <button class="btn btn-success play-mode-btn" onclick="joinRandomPlayers('ludo')">
+          <i class="fas fa-random"></i> Join Random Players
+        </button>
+        
+        <div class="code-input-container">
+          <input type="text" id="join-code-input-ludo" placeholder="Enter Game Code" class="form-control mb-2" style="width: 100%; text-align: center;">
+          <button class="btn btn-info code-input-btn" onclick="joinPrivateGameWithCode('ludo')">
+            <i class="fas fa-sign-in-alt"></i> Join With Code
+          </button>
+        </div>
+      </div>
+      
+      <div class="game-code-section" id="ludo-code-section" style="display: none;">
+        <h4>Your Game Code</h4>
+        <div class="game-code" id="ludo-game-code">ABCD12</div>
+        <button class="btn btn-info" onclick="copyGameCode('ludo')">
+          <i class="fas fa-copy"></i> Copy Code
+        </button>
+        <div class="players-joined">
+          <span id="ludo-players-count">0</span> players joined
+        </div>
+        <button class="btn btn-success start-game-btn" onclick="startGame('ludo')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn" onclick="cancelPrivateRoom('ludo')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Waiting Room for Random Players -->
+      <div class="waiting-room" id="ludo-waiting-room">
+        <h3 class="waiting-header">Waiting For Another Player's</h3>
+        <div class="player-box">
+          <div class="player-container">
+            <div class="player-avatar" id="ludo-player1-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="ludo-player1-name">You</div>
+          </div>
+          
+          <div class="vs-text">VS</div>
+          
+          <div class="player-container">
+            <div class="player-avatar" id="ludo-player2-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="ludo-player2-name">Searching...</div>
+          </div>
+        </div>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelRandomSearch('ludo')">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Private Room -->
+      <div class="private-room" id="ludo-private-room">
+        <h3>Private Room</h3>
+        <div class="room-code" id="ludo-room-code">ABCD12</div>
+        
+        <div class="players-grid" id="ludo-players-grid">
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name-room" id="ludo-room-player1">You</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+        </div>
+        
+        <button class="btn btn-success start-game-btn-waiting" id="ludo-start-private-btn" onclick="startGame('ludo')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelPrivateRoom('ludo')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-popup" id="chess-popup">
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="game-popup-content">
+      <button class="back-btn-top-left" id="chess-back-btn" onclick="backToGamePage('chess')" style="display: none;">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      
+      <div class="game-slider-container" id="chess-slider">
+        <!-- Slides will be added dynamically -->
+      </div>
+      <button class="game-slider-nav game-slider-prev" id="chess-prev-btn" onclick="prevSlide('chess')">❮</button>
+      <button class="game-slider-nav game-slider-next" id="chess-next-btn" onclick="nextSlide('chess')">❯</button>
+      
+      <div class="game-play-options" style="display: none;">
+        <button class="btn btn-primary play-mode-btn" onclick="createPrivateRoom('chess')">
+          <i class="fas fa-users"></i> Create Private Room
+        </button>
+        <button class="btn btn-success play-mode-btn" onclick="joinRandomPlayers('chess')">
+          <i class="fas fa-random"></i> Join Random Players
+        </button>
+        
+        <div class="code-input-container">
+          <input type="text" id="join-code-input-chess" placeholder="Enter Game Code" class="form-control mb-2" style="width: 100%; text-align: center;">
+          <button class="btn btn-info code-input-btn" onclick="joinPrivateGameWithCode('chess')">
+            <i class="fas fa-sign-in-alt"></i> Join With Code
+          </button>
+        </div>
+      </div>
+      
+      <div class="game-code-section" id="chess-code-section" style="display: none;">
+        <h4>Your Game Code</h4>
+        <div class="game-code" id="chess-game-code">ABCD12</div>
+        <button class="btn btn-info" onclick="copyGameCode('chess')">
+          <i class="fas fa-copy"></i> Copy Code
+        </button>
+        <div class="players-joined">
+          <span id="chess-players-count">0</span> players joined
+        </div>
+        <button class="btn btn-success start-game-btn" onclick="startGame('chess')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn" onclick="cancelPrivateRoom('chess')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Waiting Room for Random Players -->
+      <div class="waiting-room" id="chess-waiting-room">
+        <h3 class="waiting-header">Waiting For Another Player's</h3>
+        <div class="player-box">
+          <div class="player-container">
+            <div class="player-avatar" id="chess-player1-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="chess-player1-name">You</div>
+          </div>
+          
+          <div class="vs-text">VS</div>
+          
+          <div class="player-container">
+            <div class="player-avatar" id="chess-player2-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="chess-player2-name">Searching...</div>
+          </div>
+        </div>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelRandomSearch('chess')">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Private Room -->
+      <div class="private-room" id="chess-private-room">
+        <h3>Private Room</h3>
+        <div class="room-code" id="chess-room-code">ABCD12</div>
+        
+        <div class="players-grid" id="chess-players-grid">
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name-room" id="chess-room-player1">You</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+        </div>
+        
+        <button class="btn btn-success start-game-btn-waiting" id="chess-start-private-btn" onclick="startGame('chess')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelPrivateRoom('chess')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-popup" id="carrom-popup">
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="game-popup-content">
+      <button class="back-btn-top-left" id="carrom-back-btn" onclick="backToGamePage('carrom')" style="display: none;">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      
+      <div class="game-slider-container" id="carrom-slider">
+        <!-- Slides will be added dynamically -->
+      </div>
+      <button class="game-slider-nav game-slider-prev" id="carrom-prev-btn" onclick="prevSlide('carrom')">❮</button>
+      <button class="game-slider-nav game-slider-next" id="carrom-next-btn" onclick="nextSlide('carrom')">❯</button>
+      
+      <div class="game-play-options" style="display: none;">
+        <button class="btn btn-primary play-mode-btn" onclick="createPrivateRoom('carrom')">
+          <i class="fas fa-users"></i> Create Private Room
+        </button>
+        <button class="btn btn-success play-mode-btn" onclick="joinRandomPlayers('carrom')">
+          <i class="fas fa-random"></i> Join Random Players
+        </button>
+        
+        <div class="code-input-container">
+          <input type="text" id="join-code-input-carrom" placeholder="Enter Game Code" class="form-control mb-2" style="width: 100%; text-align: center;">
+          <button class="btn btn-info code-input-btn" onclick="joinPrivateGameWithCode('carrom')">
+            <i class="fas fa-sign-in-alt"></i> Join With Code
+          </button>
+        </div>
+      </div>
+      
+      <div class="game-code-section" id="carrom-code-section" style="display: none;">
+        <h4>Your Game Code</h4>
+        <div class="game-code" id="carrom-game-code">ABCD12</div>
+        <button class="btn btn-info" onclick="copyGameCode('carrom')">
+          <i class="fas fa-copy"></i> Copy Code
+        </button>
+        <div class="players-joined">
+          <span id="carrom-players-count">0</span> players joined
+        </div>
+        <button class="btn btn-success start-game-btn" onclick="startGame('carrom')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn" onclick="cancelPrivateRoom('carrom')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Waiting Room for Random Players -->
+      <div class="waiting-room" id="carrom-waiting-room">
+        <h3 class="waiting-header">Waiting For Another Player's</h3>
+        <div class="player-box">
+          <div class="player-container">
+            <div class="player-avatar" id="carrom-player1-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="carrom-player1-name">You</div>
+          </div>
+          
+          <div class="vs-text">VS</div>
+          
+          <div class="player-container">
+            <div class="player-avatar" id="carrom-player2-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="carrom-player2-name">Searching...</div>
+          </div>
+        </div>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelRandomSearch('carrom')">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Private Room -->
+      <div class="private-room" id="carrom-private-room">
+        <h3>Private Room</h3>
+        <div class="room-code" id="carrom-room-code">ABCD12</div>
+        
+        <div class="players-grid" id="carrom-players-grid">
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name-room" id="carrom-room-player1">You</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+        </div>
+        
+        <button class="btn btn-success start-game-btn-waiting" id="carrom-start-private-btn" onclick="startGame('carrom')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelPrivateRoom('carrom')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-popup" id="bead16-popup">
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="game-popup-content">
+      <button class="back-btn-top-left" id="bead16-back-btn" onclick="backToGamePage('bead16')" style="display: none;">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      
+      <div class="game-slider-container" id="bead16-slider">
+        <!-- Slides will be added dynamically -->
+      </div>
+      <button class="game-slider-nav game-slider-prev" id="bead16-prev-btn" onclick="prevSlide('bead16')">❮</button>
+      <button class="game-slider-nav game-slider-next" id="bead16-next-btn" onclick="nextSlide('bead16')">❯</button>
+      
+      <div class="game-play-options" style="display: none;">
+        <button class="btn btn-primary play-mode-btn" onclick="createPrivateRoom('bead16')">
+          <i class="fas fa-users"></i> Create Private Room
+        </button>
+        <button class="btn btn-success play-mode-btn" onclick="joinRandomPlayers('bead16')">
+          <i class="fas fa-random"></i> Join Random Players
+        </button>
+        
+        <div class="code-input-container">
+          <input type="text" id="join-code-input-bead16" placeholder="Enter Game Code" class="form-control mb-2" style="width: 100%; text-align: center;">
+          <button class="btn btn-info code-input-btn" onclick="joinPrivateGameWithCode('bead16')">
+            <i class="fas fa-sign-in-alt"></i> Join With Code
+          </button>
+        </div>
+      </div>
+      
+      <div class="game-code-section" id="bead16-code-section" style="display: none;">
+        <h4>Your Game Code</h4>
+        <div class="game-code" id="bead16-game-code">ABCD12</div>
+        <button class="btn btn-info" onclick="copyGameCode('bead16')">
+          <i class="fas fa-copy"></i> Copy Code
+        </button>
+        <div class="players-joined">
+          <span id="bead16-players-count">0</span> players joined
+        </div>
+        <button class="btn btn-success start-game-btn" onclick="startGame('bead16')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn" onclick="cancelPrivateRoom('bead16')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Waiting Room for Random Players -->
+      <div class="waiting-room" id="bead16-waiting-room">
+        <h3 class="waiting-header">Waiting For Another Player's</h3>
+        <div class="player-box">
+          <div class="player-container">
+            <div class="player-avatar" id="bead16-player1-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="bead16-player1-name">You</div>
+          </div>
+          
+          <div class="vs-text">VS</div>
+          
+          <div class="player-container">
+            <div class="player-avatar" id="bead16-player2-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name" id="bead16-player2-name">Searching...</div>
+          </div>
+        </div>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelRandomSearch('bead16')">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+      
+      <!-- Private Room -->
+      <div class="private-room" id="bead16-private-room">
+        <h3>Private Room</h3>
+        <div class="room-code" id="bead16-room-code">ABCD12</div>
+        
+        <div class="players-grid" id="bead16-players-grid">
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="player-name-room" id="bead16-room-player1">You</div>
+          </div>
+          <div class="player-box-room">
+            <div class="player-avatar-room">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="player-name-room">Waiting...</div>
+          </div>
+        </div>
+        
+        <button class="btn btn-success start-game-btn-waiting" id="bead16-start-private-btn" onclick="startGame('bead16')" disabled>
+          <i class="fas fa-play"></i> Start Game
+        </button>
+        <button class="btn btn-danger start-game-btn-waiting" onclick="cancelPrivateRoom('bead16')" style="margin-top: 10px;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popup Menu -->
+  <div id="popup-menu">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <h3><i class="fas fa-bars"></i> Menu</h3>
+    <div id="popup-balance">Balance: ৳0</div>
+    <button class="popup-menu-item" onclick="showDepositPage()"><i class="fas fa-coins"></i> Deposit</button>
+    <button class="popup-menu-item" onclick="showWithdrawPage()"><i class="fas fa-money-bill-wave"></i> Withdraw</button>
+    <button class="popup-menu-item" onclick="showHistory()"><i class="fas fa-history"></i> History</button>
+    <button class="popup-menu-item" onclick="showProfile()"><i class="fas fa-user"></i> Profile</button>
+    <button class="popup-menu-item" onclick="logoutUser()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+  </div>
+
+  <!-- Contact Us Popup -->
+  <div class="popup-page contact-popup" id="contact-popup">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="popup-content">
+      <h2 class="page-title"><i class="fas fa-headset"></i> Contact Us</h2>
+      
+      <div class="contact-buttons">
+        <button class="contact-btn facebook-btn" onclick="openLink('facebook')">
+          <i class="fab fa-facebook-f"></i> Facebook Page
+        </button>
+        <button class="contact-btn messenger-btn" onclick="openLink('messenger')">
+          <i class="fab fa-facebook-messenger"></i> Messenger Support
+        </button>
+        <button class="contact-btn whatsapp-btn" onclick="openLink('whatsapp_group')">
+          <i class="fab fa-whatsapp"></i> Whatsapp Group
+        </button>
+        <button class="contact-btn whatsapp-btn" onclick="openLink('whatsapp_support')">
+          <i class="fab fa-whatsapp"></i> Whatsapp Support
+        </button>
+        <button class="contact-btn telegram-btn" onclick="openLink('telegram_group')">
+          <i class="fab fa-telegram-plane"></i> Telegram Group
+        </button>
+        <button class="contact-btn telegram-btn" onclick="openLink('telegram_support')">
+          <i class="fab fa-telegram-plane"></i> Telegram Support
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Gallery Popup -->
+  <div class="popup-page profile-gallery-popup" id="profile-gallery-popup">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="popup-content">
+      <h2 class="page-title"><i class="fas fa-images"></i> Choose Profile Picture</h2>
+      
+      <div class="profile-gallery" id="profile-gallery">
+        <!-- Profile pictures will be added dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Form -->
+  <div class="auth-container" id="login-form">
+    <h2><i class="fas fa-sign-in-alt"></i> Login</h2>
+    <input type="email" id="login-email" class="form-control" placeholder="Email" />
+    <input type="password" id="login-password" class="form-control" placeholder="Password" />
+    <button onclick="loginUser()" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> Login</button>
+    <div class="form-switcher">Don't have an account? <span onclick="showForm('register-form')">Register</span></div>
+    <div class="form-switcher">Forgot Password? <span onclick="showForm('reset-form')">Reset</span></div>
+  </div>
+
+  <!-- Register Form -->
+  <div class="auth-container" id="register-form">
+    <h2><i class="fas fa-user-plus"></i> Register</h2>
+    <input type="text" id="name" class="form-control" placeholder="Name" />
+    <input type="text" id="phone" class="form-control" placeholder="Phone" />
+    <input type="email" id="register-email" class="form-control" placeholder="Email" />
+    <input type="password" id="register-password" class="form-control" placeholder="Password" />
+    <button onclick="registerUser()" class="btn btn-success"><i class="fas fa-user-plus"></i> Register</button>
+    <div class="form-switcher">Already have an account? <span onclick="showForm('login-form')">Login</span></div>
+  </div>
+
+  <!-- Reset Password -->
+  <div class="auth-container" id="reset-form">
+    <h2><i class="fas fa-key"></i> Reset Password</h2>
+    <input type="email" id="reset-email" class="form-control" placeholder="Enter your email" />
+    <button onclick="sendPasswordReset()" class="btn btn-warning"><i class="fas fa-paper-plane"></i> Send Reset Email</button>
+    <div class="form-switcher"><i class="fas fa-arrow-left"></i> <span onclick="showForm('login-form')">Back to Login</span></div>
+  </div>
+
+  <!-- Home Page -->
+  <div class="home-page" id="home-page">
+    <div class="top-bar">
+      <button class="profile-btn" onclick="showProfile()" id="profile-btn">
+        <i class="fas fa-user"></i>
+      </button>
+      <button class="message-btn" onclick="alert('Messages will be shown here')">
+        <i class="fas fa-comment-dots"></i>
+      </button>
+      <div class="balance-display-container">
+        <div class="balance-display" id="balance-display"><i class="fas fa-wallet"></i> ৳0</div>
+      </div>
+      <div class="deposit-btn-container">
+        <button class="btn deposit-btn" onclick="showDepositPage()">
+          <img src="https://i.postimg.cc/x1pdKqxW/Deposit-icon.png" alt="Deposit" width="16"> Deposit
+        </button>
+      </div>
+    </div>
+    
+    <div id="banner-container">
+  <div id="banner-slider"></div>
+</div>
+    
+    <!-- Game Cards Section -->
+    <div class="game-cards-container">
+      <!-- Ludo Card -->
+      <div class="game-card" onclick="showGamePopup('ludo')">
+        <img src="https://i.postimg.cc/FF0BHz4T/Ludo-Game-Logo.jpg" class="game-logo" alt="Ludo">
+        <div class="game-title">LUDO</div>
+      </div>
+
+      <!-- Carrom Card -->
+      <div class="game-card" onclick="showGamePopup('carrom')">
+        <img src="https://i.postimg.cc/MH0PPPDC/Carron-Bord-Game-Logo.jpg" class="game-logo" alt="Carrom">
+        <div class="game-title">CARROM</div>
+      </div>
+
+      <!-- Chess Card -->
+      <div class="game-card" onclick="showGamePopup('chess')">
+        <img src="https://i.postimg.cc/WzcY7LMm/Chess-Game-Logo.jpg" class="game-logo" alt="Chess">
+        <div class="game-title">CHESS</div>
+      </div>
+
+      <!-- Bead 16 Card -->
+      <div class="game-card" onclick="showGamePopup('bead16')">
+        <img src="https://i.postimg.cc/PrhFpHfT/Bead-16-Game-Logo.png" class="game-logo" alt="Bead 16">
+        <div class="game-title">BEAD 16</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deposit Popup -->
+  <div class="popup-page deposit-popup" id="deposit-popup">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="popup-content">
+      <h2 class="page-title"><i class="fas fa-coins"></i> Deposit Money</h2>
+      
+      <div class="payment-methods-container" id="payment-methods-container">
+        <div class="info-text">
+          <i class="fas fa-info-circle"></i> Select a payment method below. The available methods will change each time you refresh the page.
+        </div>
+        <!-- Payment cards will be dynamically inserted here -->
+      </div>
+      
+      <div class="form-group mb-4">
+        <label for="deposit-amount"><i class="fas fa-money-bill-wave"></i> Amount (৳)</label>
+        <input type="number" id="deposit-amount" class="form-control" placeholder="Enter amount">
+      </div>
+      
+      <div class="form-group mb-4" id="selected-method-info" style="display: none;">
+        <label><i class="fas fa-credit-card"></i> Selected Payment Method</label>
+        <div class="payment-card selected" id="selected-method-card">
+          <!-- Selected method details will be shown here -->
+        </div>
+      </div>
+      
+      <div class="form-group mb-4">
+        <label for="transaction-id"><i class="fas fa-receipt"></i> Transaction ID</label>
+        <input type="text" id="transaction-id" class="form-control" placeholder="Enter transaction ID">
+      </div>
+      
+      <div class="form-group mb-4">
+        <label for="from-number"><i class="fas fa-mobile-alt"></i> From (Sender Number)</label>
+        <input type="text" id="from-number" class="form-control" placeholder="Enter sender number">
+      </div>
+      
+      <button class="btn btn-success w-100 py-3" onclick="processDeposit()">
+        <i class="fas fa-paper-plane"></i> Submit Deposit Request
+      </button>
+    </div>
+  </div>
+
+  <!-- Withdraw Popup -->
+  <div class="popup-page withdraw-popup" id="withdraw-popup">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="popup-content">
+      <h2 class="page-title"><i class="fas fa-money-bill-wave"></i> Withdraw Money</h2>
+      
+      <div class="form-group mb-4">
+        <label><i class="fas fa-wallet"></i> Withdraw Method</label>
+        <select id="withdraw-method" class="form-control">
+          <option value="bkash">Personal বিকাশ নাম্বার</option>
+          <option value="nagad">Personal নগদ নাম্বার</option>
+          <option value="rocket">Personal রকেট নাম্বার</option>
+          <option value="binance">Binance Pay ID</option>
+        </select>
+      </div>
+
+      <div class="form-group mb-4">
+        <label for="withdraw-amount"><i class="fas fa-money-bill-alt"></i> Amount (৳)</label>
+        <input type="number" id="withdraw-amount" class="form-control" placeholder="Enter amount to withdraw">
+      </div>
+
+      <div class="form-group mb-4">
+        <label for="account-number"><i class="fas fa-id-card"></i> Account Number/ID</label>
+        <input type="text" id="account-number" class="form-control" placeholder="Enter your account number/ID">
+      </div>
+
+      <div class="mb-4 p-3 bg-dark rounded">
+        <h5><i class="fas fa-wallet"></i> Available Balance: <span id="withdraw-balance" class="text-warning">৳0</span></h5>
+      </div>
+
+      <button class="btn btn-danger w-100 py-3" onclick="processWithdraw()">
+        <i class="fas fa-paper-plane"></i> Submit Withdraw Request
+      </button>
+    </div>
+  </div>
+
+  <!-- History Popup -->
+  <div class="popup-page history-popup" id="history-popup">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="popup-content">
+      <h2 class="page-title"><i class="fas fa-history"></i> Transaction History</h2>
+      <div id="history-list" style="margin-top: 20px;"></div>
+    </div>
+  </div>
+
+  <!-- Profile Popup -->
+  <div class="popup-page profile-popup" id="profile-popup">
+    <div class="popup-overlay"></div>
+    <button class="close-popup" onclick="hideAllPopups()">×</button>
+    <div class="popup-content">
+      <div class="profile-form">
+        <div class="profile-header">
+          <div class="profile-avatar" id="profile-avatar">
+            <i class="fas fa-user"></i>
+            <div class="add-photo" onclick="showProfileGallery()">
+              <i class="fas fa-plus"></i>
+            </div>
+          </div>
+          <h2><i class="fas fa-user"></i> Profile</h2>
+        </div>
+        
+        <div class="form-group mb-4">
+          <label for="profile-name"><i class="fas fa-user"></i> Name</label>
+          <input type="text" id="profile-name" class="form-control" placeholder="Name" readonly />
+        </div>
+        
+        <div class="form-group mb-4">
+          <label for="profile-phone"><i class="fas fa-phone"></i> Phone</label>
+          <input type="text" id="profile-phone" class="form-control" placeholder="Phone" readonly />
+        </div>
+        
+        <div class="form-group mb-4">
+          <label for="profile-email"><i class="fas fa-envelope"></i> Email</label>
+          <input type="email" id="profile-email" class="form-control" placeholder="Email" readonly />
+        </div>
+        
+        <div class="form-group mb-4">
+          <label for="new-password"><i class="fas fa-key"></i> New Password</label>
+          <input type="password" id="new-password" class="form-control" placeholder="Leave blank to keep current password" />
+        </div>
+        
+        <button onclick="changePassword()" class="btn btn-info w-100 mb-3">
+          <i class="fas fa-key"></i> Change Password
+        </button>
+        
+        <button class="btn btn-danger w-100 py-2" onclick="logoutUser()">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <div class="nav-bar" id="nav-bar" style="display: none;">
+    <button class="btn btn-outline-light" onclick="showHome()" id="nav-home">
+      <i class="fas fa-home"></i>
+      <span>Home</span>
+    </button>
+    <button class="btn btn-outline-light" onclick="showHistory()" id="nav-history">
+      <i class="fas fa-history"></i>
+      <span>History</span>
+    </button>
+    <button class="btn btn-outline-light" onclick="showWithdrawPage()" id="nav-withdraw">
+      <i class="fas fa-money-bill-wave"></i>
+      <span>Withdraw</span>
+    </button>
+    <button class="btn btn-outline-light" onclick="showContactPage()" id="nav-contact">
+      <i class="fas fa-headset"></i>
+      <span>Contact Us</span>
+    </button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCS5nlNZ-SA5erCj0Cf1v5KWhfnmcfPmRw",
+      authDomain: "high--call-message.firebaseapp.com",
+      databaseURL: "https://high--call-message-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "high--call-message",
+      storageBucket: "high--call-message.appspot.com",
+      messagingSenderId: "369974545305",
+      appId: "1:369974545305:web:10315a079922d1931fe108",
+      measurementId: "G-3E4LTER2LF"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+    
+    // Global variables for payment methods
+    let availablePaymentMethods = [];
+    let selectedPaymentMethod = null;
+    let currentAdminId = null;
+    let currentSlideIndex = {
+      ludo: 0,
+      chess: 0,
+      carrom: 0,
+      bead16: 0
+    };
+    let gameRewards = {
+      ludo: [],
+      chess: [],
+      carrom: [],
+      bead16: []
+    };
+    let currentGameType = null;
+    let currentGameEntryFee = 0;
+    let gameCodes = {};
+    let activeGameListeners = {};
+    let randomPlayerSearchInterval = {};
+    let randomPlayerAvatars = [
+      "https://i.postimg.cc/8P3W9JQ1/avatar1.jpg",
+      "https://i.postimg.cc/8z4Vw0Xk/avatar2.jpg",
+      "https://i.postimg.cc/9FqV9J0T/avatar3.jpg",
+      "https://i.postimg.cc/4y7VQ0Jk/avatar4.jpg",
+      "https://i.postimg.cc/8z4Vw0Xk/avatar5.jpg"
+    ];
+
+    // Game images for each page (1-12)
+    const gameImages = [
+  "https://i.postimg.cc/SxLyRcGM/IMG-20250509-WA0008.jpg",
+  "https://i.postimg.cc/zv3BR3f1/360-F-1111029364-D5syo-GSOV73th08qg9jso3t1f-V8-Gi1bt.jpg",
+  "https://i.postimg.cc/j29j6KWn/breathtaking-sunrise-over-the-sydney-opera-house-in-the-famous-sydney-harbor-in-sydney.jpg",
+  "https://i.postimg.cc/qMPRzJV9/ff.jpg",
+  "https://i.postimg.cc/zDP3YwdD/india-in-pictures-beautiful-places-to-photograph-taj-mahal.jpg",
+  "https://i.postimg.cc/g0DkS3XW/360-F-243446992-dlh2txwx-Yq-NIF9jt-Ze-UN5mu-F3e-A7ngn-H.jpg",
+  "https://i.postimg.cc/g0YGZrMB/IMG-20250509-WA0003.jpg",
+  "https://i.postimg.cc/L614dcYv/IMG-20250509-WA0009.jpg",
+  "https://i.postimg.cc/wv4xHHQ4/IMG-20250509-WA0010.jpg",
+  "https://i.postimg.cc/tJ1q4frq/shutterstock-90979145-1.jpg",
+  "https://i.postimg.cc/nr1yZ1xF/IMG-20250509-WA0004.jpg",
+  "https://i.postimg.cc/YqQczgsq/pyramid-complex-in-aswan-city-by-the-nile-aerial-view-egypt.jpg"
+];
+
+    // Profile images
+    const profileImages = [
+      "https://i.postimg.cc/XqmH2vYg/253f9da5-9e7d-47b3-b08d-6bd069240dd4.jpg",
+      "https://i.postimg.cc/xjXSPJsM/2ffb6fe5-3d77-42fe-a2e8-beeaeb39a323.jpg",
+      "https://i.postimg.cc/Rh6GnzLJ/9948eec7-e635-49ea-a446-69e3a0de2db7.jpg",
+      "https://i.postimg.cc/L8dQLh79/look-At-Me.jpg",
+      "https://i.postimg.cc/ZqjhwrtF/penup-1720324478752192.png",
+      "https://i.postimg.cc/g0W5FrqS/Rain.jpg",
+      "https://i.postimg.cc/fWrrW8f0/Tag-a-friend-who-d-use-one-of-these-All-profile-pictures-are-free-file-Pictu.jpg",
+      "https://i.postimg.cc/fTXyBgHc/file-000000000d6861fd95a626cb08f776be.png",
+      "https://i.postimg.cc/zfDfDDq7/file-0000000017446230b74f917a1d7f7d7e.png",
+      "https://i.postimg.cc/dVY1XmXz/file-00000000381861f8a2a4715aed89e8cc.png",
+      "https://i.postimg.cc/QM6dFLt3/penup-1606655248700042.jpg",
+      "https://i.postimg.cc/nhGzt9fM/penup-1616848692523492.png"
+    ];
+
+    // Banner images
+    let bannerImages = [];
+  
+    let bannerInterval;
+
+    // Show splash screen for 5 seconds
+    setTimeout(() => {
+      document.getElementById('splash-screen').style.display = 'none';
+      document.body.style.display = 'block';
+      showForm('login-form');
+    }, 5000);
+
+    function showForm(id) {
+      ['login-form', 'register-form', 'reset-form', 'home-page'].forEach(form => {
+        document.getElementById(form).style.display = 'none';
+      });
+      document.getElementById("popup-menu").style.display = 'none';
+      document.getElementById("overlay").style.display = 'none';
+      if (id) {
+        document.getElementById(id).style.display = 'block';
+      }
+      
+      if (id === 'home-page') {
+        document.getElementById('nav-bar').style.display = 'flex';
+        setActiveNavButton('nav-home');
+      } else {
+        document.getElementById('nav-bar').style.display = 'none';
+      }
+      
+      window.scrollTo(0, 0);
+    }
+
+    function hideAllPopups() {
+      document.getElementById("overlay").style.display = 'none';
+      document.getElementById("deposit-popup").style.display = 'none';
+      document.getElementById("withdraw-popup").style.display = 'none';
+      document.getElementById("profile-popup").style.display = 'none';
+      document.getElementById("history-popup").style.display = 'none';
+      document.getElementById("contact-popup").style.display = 'none';
+      document.getElementById("profile-gallery-popup").style.display = 'none';
+      document.getElementById("popup-menu").style.display = 'none';
+      document.getElementById("ludo-popup").style.display = 'none';
+      document.getElementById("chess-popup").style.display = 'none';
+      document.getElementById("carrom-popup").style.display = 'none';
+      document.getElementById("bead16-popup").style.display = 'none';
+      
+      // Reset active nav button to home
+      setActiveNavButton('nav-home');
+      
+      // Clear any active game listeners
+      Object.keys(activeGameListeners).forEach(gameCode => {
+        db.ref(`games/${gameCode}`).off('value', activeGameListeners[gameCode]);
+      });
+      activeGameListeners = {};
+      
+      // Clear any random player search intervals
+       Object.keys(randomPlayerSearchInterval).forEach(gameType => {
+        cancelRandomSearch(gameType);
+    });
+    randomPlayerSearchInterval = {};
+}
+
+    function showGamePopup(game) {
+      currentGameType = game;
+      
+      // Show back button only for game slider
+      document.getElementById(`${game}-back-btn`).style.display = 'block';
+      
+      // Hide slider arrows initially
+      document.getElementById(`${game}-prev-btn`).style.display = 'none';
+      document.getElementById(`${game}-next-btn`).style.display = 'none';
+      
+      // Load game rewards from Firebase if not already loaded
+      if (gameRewards[game].length === 0) {
+        loadGameRewards(game);
+      } else {
+        updateGameSlider(game);
+      }
+      
+      document.getElementById("overlay").style.display = 'block';
+      document.getElementById(`${game}-popup`).style.display = 'block';
+      
+      // Initialize touch events for slider
+      initSliderTouchEvents(game);
+    }
+
+    function initSliderTouchEvents(game) {
+      const slider = document.getElementById(`${game}-slider`);
+      let startX = 0;
+      let isDragging = false;
+      
+      slider.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        isDragging = true;
+      }, { passive: true });
+      
+      slider.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        const x = e.touches[0].clientX;
+        const diff = startX - x;
+        
+        if (diff > 50 && currentSlideIndex[game] < gameRewards[game].length - 1) {
+          // Swipe left
+          nextSlide(game);
+          isDragging = false;
+        } else if (diff < -50 && currentSlideIndex[game] > 0) {
+          // Swipe right
+          prevSlide(game);
+          isDragging = false;
+        }
+      }, { passive: true });
+      
+      slider.addEventListener('touchend', () => {
+        isDragging = false;
+      }, { passive: true });
+    }
+
+    function loadGameRewards(game) {
+      db.ref(`gameRewards/${game}`).once('value').then(snapshot => {
+        const rewardsData = snapshot.val();
+        let rewards = [];
+        
+        // Convert rewards data to array if it's an object
+        if (rewardsData && typeof rewardsData === 'object') {
+          rewards = Object.values(rewardsData);
+        } else if (Array.isArray(rewardsData)) {
+          rewards = rewardsData;
+        }
+        
+        // If no rewards found in Firebase, use default rewards
+        if (rewards.length === 0) {
+          rewards = Array(12).fill().map((_, i) => ({
+            reward: (i + 1) * 100,
+            entryFee: (i + 1) * 10,
+            maxPlayers: (game === 'ludo' || game === 'carrom') ? 
+              (i % 2 === 0 ? 2 : 4) : 2 // Ludo/Carrom: even slides 2 players, odd slides 4 players
+          }));
+        }
+        
+        gameRewards[game] = rewards;
+        updateGameSlider(game);
+      }).catch(error => {
+        console.error(`Error loading ${game} rewards:`, error);
+        // Use default rewards if Firebase fails
+        gameRewards[game] = Array(12).fill().map((_, i) => ({
+          reward: (i + 1) * 100,
+          entryFee: (i + 1) * 10,
+          maxPlayers: (game === 'ludo' || game === 'carrom') ? 
+            (i % 2 === 0 ? 2 : 4) : 2
+        }));
+        updateGameSlider(game);
+      });
+    }
+
+    function updateGameSlider(game) {
+      const slider = document.getElementById(`${game}-slider`);
+      slider.innerHTML = '';
+      
+      if (!gameRewards[game] || !Array.isArray(gameRewards[game])) {
+        console.error(`Invalid rewards data for ${game}`);
+        return;
+      }
+      
+      gameRewards[game].forEach((reward, index) => {
+        const slide = document.createElement('div');
+        slide.className = 'game-slide';
+        slide.onclick = () => checkBalanceAndPlay(game, reward.entryFee, reward.maxPlayers);
+        slide.innerHTML = `
+          <div class="game-image-frame">
+            <img src="${gameImages[index]}" class="game-image" alt="Game Image ${index + 1}">
+          </div>
+          <div class="game-reward-card">
+            <div class="game-reward-title">${game.toUpperCase()} REWARDS</div>
+            <div class="game-reward-box">
+              <div class="game-reward-label">Rewards</div>
+              <div class="game-reward-amount">৳${reward.reward}</div>
+            </div>
+          </div>
+          <div class="game-entry-fee">
+            <div class="game-reward-label">Entry Fee</div>
+            <div class="game-reward-amount">৳${reward.entryFee}</div>
+          </div>
+          
+          <button class="btn btn-success play-btn">PLAY NOW</button>
+        `;
+        slider.appendChild(slide);
+      });
+      
+      // Reset slide position
+      currentSlideIndex[game] = 0;
+      updateSliderPosition(game);
+    }
+
+    function checkBalanceAndPlay(game, entryFee, maxPlayers) {
+      currentGameEntryFee = entryFee;
+      const uid = auth.currentUser.uid;
+      
+      db.ref("users/" + uid).once('value').then(snapshot => {
+        const userData = snapshot.val();
+        const balance = userData?.balance || 0;
+        
+        if (balance >= entryFee) {
+          // Show play options
+          document.querySelector(`#${game}-popup .game-play-options`).style.display = 'block';
+          document.querySelector(`#${game}-popup .game-slider-container`).style.display = 'none';
+          
+          // Hide slider arrows
+          document.getElementById(`${game}-prev-btn`).style.display = 'none';
+          document.getElementById(`${game}-next-btn`).style.display = 'none';
+          
+          // Hide back button from game slider
+          document.getElementById(`${game}-back-btn`).style.display = 'none';
+          
+          // Set max players for this game
+          document.querySelector(`#${game}-popup .game-play-options`).dataset.maxPlayers = maxPlayers;
+        } else {
+          alert(`Insufficient balance. You need ৳${entryFee} to play.`);
+          hideAllPopups();
+          showDepositPage();
+        }
+      }).catch(error => {
+        console.error("Error checking balance:", error);
+        alert("Error checking your balance. Please try again.");
+      });
+    }
+
+    function createPrivateRoom(gameType) {
+      // Generate a random game code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const maxPlayers = parseInt(document.querySelector(`#${gameType}-popup .game-play-options`).dataset.maxPlayers) || 
+                         ((gameType === 'ludo' || gameType === 'carrom') ? 4 : 2);
+      
+      gameCodes[code] = {
+        gameType: gameType,
+        creator: auth.currentUser.uid,
+        players: [auth.currentUser.uid],
+        entryFee: currentGameEntryFee,
+        status: 'waiting',
+        maxPlayers: maxPlayers,
+        createdAt: Date.now()
+      };
+      
+      // Save to Firebase
+      db.ref(`games/${code}`).set(gameCodes[code]);
+      
+      // Hide play options and show private room
+      document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'none';
+      document.getElementById(`${gameType}-private-room`).style.display = 'block';
+      document.getElementById(`${gameType}-room-code`).textContent = code;
+      
+      // Set 10 minute timeout to expire the room
+      setTimeout(() => {
+        db.ref(`games/${code}`).once('value').then(snapshot => {
+          const game = snapshot.val();
+          if (game && game.status === 'waiting') {
+            db.ref(`games/${code}`).remove();
+            alert("This room has expired (10 minutes limit).");
+            hideAllPopups();
+          }
+        });
+      }, 10 * 60 * 1000);
+      
+      // Listen for players joining
+      const listener = db.ref(`games/${code}/players`).on('value', (snapshot) => {
+        const players = snapshot.val();
+        updatePrivateRoomPlayers(gameType, code, players);
+      });
+      
+      activeGameListeners[code] = listener;
+    }
+
+    function updatePrivateRoomPlayers(gameType, code, players) {
+    const playersGrid = document.getElementById(`${gameType}-players-grid`);
+    playersGrid.innerHTML = '';
+    
+    const gameData = gameCodes[code];
+    const maxPlayers = gameData?.maxPlayers || 2;
+    
+    for (let i = 0; i < maxPlayers; i++) {
+        const playerBox = document.createElement('div');
+        playerBox.className = 'player-box-room';
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'player-avatar-room';
+        
+        const name = document.createElement('div');
+        name.className = 'player-name-room';
+        
+        if (players && players[i]) {
+            db.ref(`users/${players[i]}`).once('value').then(snapshot => {
+                const user = snapshot.val();
+                name.textContent = user?.name || "Player";
+                if (user?.photoURL) {
+                    avatar.innerHTML = `<img src="${user.photoURL}" alt="Profile" style="width:100%;height:100%;object-fit:cover;">`;
+                } else {
+                    avatar.innerHTML = '<i class="fas fa-user"></i>';
+                }
+            });
+        } else {
+            avatar.innerHTML = '<i class="fas fa-user-plus"></i>';
+            name.textContent = 'Waiting...';
+        }
+        
+        playerBox.appendChild(avatar);
+        playerBox.appendChild(name);
+        playersGrid.appendChild(playerBox);
+    }
+    
+    const startButton = document.getElementById(`${gameType}-start-private-btn`);
+    if (players && players.length >= 2 && players.length <= maxPlayers) {
+        startButton.disabled = false;
+    } else {
+        startButton.disabled = true;
+    }
+}
+
+    function joinRandomPlayers(gameType) {
+    const uid = auth.currentUser.uid;
+    const maxPlayers = (gameType === 'ludo' || gameType === 'carrom') ? 
+        parseInt(document.querySelector(`#${gameType}-popup .game-play-options`).dataset.maxPlayers) || 2 : 2;
+    
+    document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'none';
+    document.getElementById(`${gameType}-waiting-room`).style.display = 'block';
+    
+    db.ref(`users/${uid}`).once('value').then(snapshot => {
+        const user = snapshot.val();
+        document.getElementById(`${gameType}-player1-name`).textContent = user?.name || "You";
+        if (user?.photoURL) {
+            document.getElementById(`${gameType}-player1-avatar`).innerHTML = `<img src="${user.photoURL}" style="width:100%;height:100%;object-fit:cover;">`;
+        }
+    });
+    
+    const waitingRoomRef = db.ref(`waitingRooms/${gameType}`).push();
+    const waitingRoomId = waitingRoomRef.key;
+    
+    const waitingData = {
+        userId: uid,
+        entryFee: currentGameEntryFee,
+        maxPlayers: maxPlayers,
+        createdAt: Date.now(),
+        status: 'waiting'
+    };
+    
+    waitingRoomRef.set(waitingData)
+        .then(() => {
+            const matchListener = db.ref(`matches/${waitingRoomId}`).on('value', (snapshot) => {
+                const matchData = snapshot.val();
+                if (matchData && matchData.status === 'matched') {
+                    clearTimeout(timeoutId);
+                    startMultiplayerGame(gameType, matchData.gameCode);
+                }
+            });
+            
+            const timeoutId = setTimeout(() => {
+                waitingRoomRef.remove();
+                db.ref(`matches/${waitingRoomId}`).off('value', matchListener);
+                db.ref(`matches/${waitingRoomId}`).remove();
+                
+                document.getElementById(`${gameType}-player2-name`).textContent = "No players found";
+                setTimeout(() => {
+                    document.getElementById(`${gameType}-waiting-room`).style.display = 'none';
+                    document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'block';
+                }, 2000);
+            }, 30000);
+            
+            randomPlayerSearchInterval[gameType] = {
+                waitingRoomRef: waitingRoomRef,
+                matchListener: matchListener,
+                timeoutId: timeoutId
+            };
+            
+            findRandomOpponent(gameType, waitingRoomId, maxPlayers);
+        });
+}
+
+function startMultiplayerGame(gameType, gameCode) {
+  document.getElementById(`${gameType}-waiting-room`).style.display = 'none';
+  
+  const opponentInfoContainer = document.createElement('div');
+  opponentInfoContainer.className = 'opponent-info-container';
+  opponentInfoContainer.innerHTML = `
+    <h3>Match Found!</h3>
+    <div class="player-box">
+      <div class="player-avatar" id="${gameType}-opponent-avatar">
+        <i class="fas fa-user"></i>
+      </div>
+      <div class="player-name" id="${gameType}-opponent-name">Loading...</div>
+    </div>
+    <p>Game will start in 3 seconds...</p>
+  `;
+  
+  document.getElementById(`${gameType}-popup`).appendChild(opponentInfoContainer);
+
+  // Null check সহ ডাটা ফেচ করুন
+  db.ref(`games/${gameCode}`).once('value').then(snapshot => {
+    const gameData = snapshot.val();
+    
+    if (!gameData || !gameData.players) {
+      throw new Error("Game data not found");
+    }
+
+    const opponentId = gameData.players.find(playerId => playerId !== auth.currentUser.uid);
+    
+    if (!opponentId) {
+      throw new Error("Opponent not found");
+    }
+
+    return db.ref(`users/${opponentId}`).once('value').then(opponentSnapshot => {
+      const opponent = opponentSnapshot.val();
+      
+      if (!opponent) {
+        throw new Error("Opponent data not found");
+      }
+
+      document.getElementById(`${gameType}-opponent-name`).textContent = opponent.name || "Opponent";
+      
+      if (opponent.photoURL) {
+        document.getElementById(`${gameType}-opponent-avatar`).innerHTML = 
+          `<img src="${opponent.photoURL}" alt="Opponent">`;
+      }
+
+      setTimeout(() => {
+        opponentInfoContainer.remove();
+        launchGameInterface(gameType, gameCode);
+      }, 3000);
+    });
+  }).catch(error => {
+    console.error("Error in multiplayer game:", error);
+    opponentInfoContainer.remove();
+    alert("Error starting game: " + error.message);
+    document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'block';
+  });
+}
+
+    function findRandomOpponent(gameType, waitingRoomId, maxPlayers) {
+    db.ref(`waitingRooms/${gameType}`).orderByChild('status').equalTo('waiting').once('value')
+        .then(snapshot => {
+            const waitingPlayers = [];
+            snapshot.forEach(child => {
+                if (child.key !== waitingRoomId) {
+                    waitingPlayers.push({
+                        id: child.key,
+                        ...child.val()
+                    });
+                }
+            });
+            
+            if (waitingPlayers.length > 0) {
+                const compatiblePlayers = waitingPlayers.filter(player => 
+                    player.entryFee === currentGameEntryFee && 
+                    player.maxPlayers === maxPlayers
+                );
+                
+                if (compatiblePlayers.length > 0) {
+                    const opponent = compatiblePlayers[Math.floor(Math.random() * compatiblePlayers.length)];
+                    const gameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                    
+                    gameCodes[gameCode] = {
+                        gameType: gameType,
+                        players: [auth.currentUser.uid, opponent.userId],
+                        entryFee: currentGameEntryFee,
+                        status: 'started',
+                        maxPlayers: maxPlayers
+                    };
+                    
+                    db.ref(`games/${gameCode}`).set(gameCodes[gameCode]);
+                    
+                    const updates = {};
+                    updates[`matches/${waitingRoomId}`] = {
+                        status: 'matched',
+                        gameCode: gameCode
+                    };
+                    updates[`matches/${opponent.id}`] = {
+                        status: 'matched',
+                        gameCode: gameCode
+                    };
+                    
+                    updates[`waitingRooms/${gameType}/${waitingRoomId}/status`] = 'matched';
+                    updates[`waitingRooms/${gameType}/${opponent.id}/status`] = 'matched';
+                    
+                    return db.ref().update(updates);
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Error finding opponent:", error);
+        });
+}
+
+    function cancelRandomSearch(gameType) {
+    if (randomPlayerSearchInterval[gameType]) {
+        // Clear timeout and remove from waiting room
+        clearTimeout(randomPlayerSearchInterval[gameType].timeoutId);
+        randomPlayerSearchInterval[gameType].waitingRoomRef.remove();
+        
+        // Remove match listener
+        db.ref(`matches/${randomPlayerSearchInterval[gameType].waitingRoomRef.key}`)
+            .off('value', randomPlayerSearchInterval[gameType].matchListener);
+        
+        // Remove match record
+        db.ref(`matches/${randomPlayerSearchInterval[gameType].waitingRoomRef.key}`).remove();
+        
+        // Clear the interval reference
+        delete randomPlayerSearchInterval[gameType];
+    }
+    
+    // Hide waiting room and show play options
+    document.getElementById(`${gameType}-waiting-room`).style.display = 'none';
+    document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'block';
+}
+    
+    function joinPrivateGameWithCode(gameType) {
+  const code = document.getElementById(`join-code-input-${gameType}`).value.trim().toUpperCase();
+  
+  if (!code) {
+    alert("Please enter a valid game code.");
+    return;
+  }
+
+  // Check if code exists in gameCodes object
+  if (!gameCodes[code]) {
+    alert("Invalid game code. Please check and try again.");
+    return;
+  }
+
+  const gameData = gameCodes[code];
+  
+  if (gameData.players.includes(auth.currentUser.uid)) {
+    alert("You have already joined this game!");
+    return;
+  }
+
+  db.ref(`games/${code}/players`).once('value').then(snapshot => {
+    const players = snapshot.val() || [];
+    
+    if (players.length >= gameData.maxPlayers) {
+      alert("This game is already full.");
+      return;
+    }
+
+    const updates = {};
+    updates[`games/${code}/players/${players.length}`] = auth.currentUser.uid;
+    
+    return db.ref().update(updates).then(() => {
+      document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'none';
+      document.getElementById(`${gameType}-private-room`).style.display = 'block';
+      document.getElementById(`${gameType}-room-code`).textContent = code;
+      
+      const listener = db.ref(`games/${code}`).on('value', (snapshot) => {
+        const updatedGame = snapshot.val();
+        if (!updatedGame) {
+          alert("This room has been closed by the creator.");
+          hideAllPopups();
+          return;
+        }
+        
+        if (updatedGame.status === 'started') {
+          launchGameInterface(gameType, code);
+        }
+        
+        updatePrivateRoomPlayers(gameType, code, updatedGame.players || []);
+      });
+      
+      activeGameListeners[code] = listener;
+    });
+  }).catch(error => {
+    console.error("Error joining game:", error);
+    alert("Error joining game: " + error.message);
+  });
+}
+
+    function startGame(gameType) {
+      const code = document.getElementById(`${gameType}-room-code`).textContent;
+      
+      // Deduct entry fee from all players
+      db.ref(`games/${code}/players`).once('value').then(snapshot => {
+        const players = snapshot.val();
+        const updates = {};
+        
+        players.forEach(playerId => {
+          updates[`users/${playerId}/balance`] = firebase.database.ServerValue.increment(-currentGameEntryFee);
+          updates[`users/${playerId}/transactions/${Date.now()}`] = {
+            type: 'Game Entry Fee',
+            amount: currentGameEntryFee,
+            game: gameType,
+            date: new Date().toLocaleString(),
+            status: 'completed'
+          };
+        });
+        
+        // Update game status
+        updates[`games/${code}/status`] = 'started';
+        
+        return db.ref().update(updates);
+      }).then(() => {
+        // Start the actual game
+        launchGameInterface(gameType, code);
+      }).catch(error => {
+        console.error("Error starting game:", error);
+        alert("Error starting game. Please try again.");
+      });
+    }
+    
+    function cancelPrivateRoom(gameType) {
+    const code = document.getElementById(`${gameType}-room-code`).textContent;
+    const uid = auth.currentUser.uid;
+    
+    // Remove player from the game
+    db.ref(`games/${code}/players`).once('value').then(snapshot => {
+        const players = snapshot.val() || [];
+        const updatedPlayers = players.filter(playerId => playerId !== uid);
+        
+        // If no players left, delete the room
+        if (updatedPlayers.length === 0) {
+            return db.ref(`games/${code}`).remove();
+        } else {
+            // Update players list
+            return db.ref(`games/${code}/players`).set(updatedPlayers);
+        }
+    }).then(() => {
+        // Remove listener
+        if (activeGameListeners[code]) {
+            db.ref(`games/${code}`).off('value', activeGameListeners[code]);
+            delete activeGameListeners[code];
+        }
+        
+        // Show play options
+        document.getElementById(`${gameType}-private-room`).style.display = 'none';
+        document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'block';
+    }).catch(error => {
+        console.error("Error leaving room:", error);
+        alert("Error leaving room. Please try again.");
+    });
+}
+
+    function launchGameInterface(gameType, code) {
+    try {
+        // আসল ইমপ্লিমেন্টেশনে এখানে গেম ইন্টারফেস লঞ্চ হবে
+        alert(`Starting ${gameType} game with code ${code}...`);
+        
+        // গেম কমপ্লিশন সিমুলেট করা
+        setTimeout(() => {
+            db.ref(`games/${code}/players`).once('value').then(snapshot => {
+                const players = snapshot.val();
+                // র্যান্ডম প্লেয়ার পজিশন
+                const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+                distributeRewards(gameType, code, shuffledPlayers);
+            });
+        }, 5000);
+    } catch (error) {
+        console.error("Game launch failed:", error);
+        alert("এখন গেমে ঢুকতে সমস্যা হচ্ছে, দয়া করে কিছুক্ষণ পরে আবার চেষ্টা করুন");
+        hideAllPopups();
+    }
+}
+
+    function distributeRewards(gameType, code, rankings) {
+      db.ref(`games/${code}`).once('value').then(snapshot => {
+        const game = snapshot.val();
+        const totalPrize = game.players.length * game.entryFee;
+        const updates = {};
+        
+        // Calculate rewards based on game type and player count
+        if (gameType === 'chess' || gameType === 'bead16') {
+          // Chess/Bead16 (2 players)
+          updates[`users/${rankings[0]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.8);
+          updates[`users/${rankings[1]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.02);
+          
+          // Admin fee (18%)
+          updates[`admins/main/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.18);
+        } else if (game.players.length === 2) {
+          // Ludo/Carrom with 2 players
+          updates[`users/${rankings[0]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.8);
+          updates[`users/${rankings[1]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.02);
+          
+          // Admin fee (18%)
+          updates[`admins/main/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.18);
+        } else {
+          // Ludo/Carrom with 4 players
+          updates[`users/${rankings[0]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.45);
+          updates[`users/${rankings[1]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.4);
+          updates[`users/${rankings[2]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.02);
+          updates[`users/${rankings[3]}/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.02);
+          
+          // Admin fee (11%)
+          updates[`admins/main/balance`] = firebase.database.ServerValue.increment(totalPrize * 0.11);
+        }
+        
+        // Record transactions
+        rankings.forEach((playerId, index) => {
+          updates[`users/${playerId}/transactions/${Date.now() + index}`] = {
+            type: 'Game Reward',
+            amount: calculateReward(gameType, game.players.length, index, totalPrize),
+            game: gameType,
+            position: index + 1,
+            date: new Date().toLocaleString(),
+            status: 'completed'
+          };
+        });
+        
+        // Update all balances and transactions
+        return db.ref().update(updates);
+      })
+      .then(() => {
+        // Clean up the game
+        db.ref(`games/${code}`).remove();
+        alert("Game completed! Rewards distributed.");
+        hideAllPopups();
+        showHome();
+      })
+      .catch(error => {
+        console.error("Error distributing rewards:", error);
+      });
+    }
+
+    function calculateReward(gameType, playerCount, position, totalPrize) {
+      if (gameType === 'chess' || gameType === 'bead16' || playerCount === 2) {
+        return position === 0 ? totalPrize * 0.8 : totalPrize * 0.02;
+      } else {
+        if (position === 0) return totalPrize * 0.45;
+        if (position === 1) return totalPrize * 0.4;
+        return totalPrize * 0.02;
+      }
+    }
+
+    function copyGameCode(gameType) {
+      const code = document.getElementById(`${gameType}-room-code`).textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        alert("Game code copied to clipboard!");
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+    }
+
+    function updateSliderPosition(game) {
+      const slider = document.getElementById(`${game}-slider`);
+      slider.style.transform = `translateX(-${currentSlideIndex[game] * 100}%)`;
+    }
+
+    function prevSlide(game) {
+      if (currentSlideIndex[game] > 0) {
+        currentSlideIndex[game]--;
+        updateSliderPosition(game);
+      }
+    }
+
+    function nextSlide(game) {
+      if (currentSlideIndex[game] < gameRewards[game].length - 1) {
+        currentSlideIndex[game]++;
+        updateSliderPosition(game);
+      }
+    }
+
+    function backToGamePage(gameType) {
+      // Show slider and arrows
+      document.querySelector(`#${gameType}-popup .game-slider-container`).style.display = 'flex';
+      document.getElementById(`${gameType}-prev-btn`).style.display = 'flex';
+      document.getElementById(`${gameType}-next-btn`).style.display = 'flex';
+      
+      // Hide all other sections
+      document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'none';
+      document.getElementById(`${gameType}-code-section`).style.display = 'none';
+      document.getElementById(`${gameType}-waiting-room`).style.display = 'none';
+      document.getElementById(`${gameType}-private-room`).style.display = 'none';
+      
+      // Hide back button
+      document.getElementById(`${gameType}-back-btn`).style.display = 'none';
+    }
+
+    function backToPlayOptions(gameType) {
+      // Show play options
+      document.querySelector(`#${gameType}-popup .game-play-options`).style.display = 'block';
+      
+      // Hide private room
+      document.getElementById(`${gameType}-private-room`).style.display = 'none';
+      
+      // Remove listener for this game
+      const code = document.getElementById(`${gameType}-room-code`).textContent;
+      if (activeGameListeners[code]) {
+        db.ref(`games/${code}`).off('value', activeGameListeners[code]);
+        delete activeGameListeners[code];
+      }
+    }
+
+    function loadRandomPaymentMethods() {
+      const container = document.getElementById("payment-methods-container");
+      const infoDiv = container.querySelector(".info-text");
+      container.innerHTML = '';
+      container.appendChild(infoDiv);
+      
+      // Clear previous selection
+      selectedPaymentMethod = null;
+      document.getElementById("selected-method-info").style.display = 'none';
+      
+      // Get all active payment methods from admins and sub-admins
+      db.ref("paymentMethods").orderByChild("isActive").equalTo(true).once('value')
+        .then(snapshot => {
+          const allMethods = [];
+          snapshot.forEach(childSnapshot => {
+            const method = childSnapshot.val();
+            method.id = childSnapshot.key;
+            method.adminId = method.adminId || childSnapshot.ref.parent.parent.key; // Get adminId from path if not set
+            allMethods.push(method);
+          });
+          
+          if (allMethods.length === 0) {
+            container.innerHTML += '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> No payment methods available. Please try again later.</div>';
+            return;
+          }
+          
+          // Shuffle the methods and pick 4 random ones (will display 2 per row)
+          availablePaymentMethods = shuffleArray(allMethods).slice(0, 4);
+          
+          // Create two rows
+          const row1 = document.createElement("div");
+          row1.className = "payment-method-row";
+          
+          const row2 = document.createElement("div");
+          row2.className = "payment-method-row";
+          
+          // Display the payment cards in 2x2 grid
+          availablePaymentMethods.forEach((method, index) => {
+            const card = document.createElement("div");
+            card.className = "payment-card";
+            
+            // Get logo based on method
+            let logoUrl = '';
+            if (method.method === 'Bkash') {
+              logoUrl = 'https://i.postimg.cc/23RB6p5w/Clipped-image-20250509-020202.png';
+            } else if (method.method === 'Nagad') {
+              logoUrl = 'https://i.postimg.cc/mZcXtQDz/Nagad-Logo-wine.png';
+            } else if (method.method === 'Rocket') {
+              logoUrl = 'https://i.postimg.cc/sXLhkGdb/Clipped-image-20250509-020123.png';
+            } else if (method.method === 'Binance Pay') {
+              logoUrl = 'https://i.postimg.cc/t4b2SwzW/binance-icon-logo-png-seeklogo-598330.png';
+            }
+            
+            card.innerHTML = `
+              <h5><img src="${logoUrl}" class="payment-logo"> ${method.method}</h5>
+              <p><strong><i class="fas fa-credit-card"></i> Number:</strong> ${method.accountNumber}</p>
+              <p><strong><i class="fas fa-info-circle"></i> Note:</strong> ${method.message || 'No additional message'}</p>
+              <span class="account-type">${method.accountType || 'Personal'}</span>
+            `;
+            
+            card.onclick = () => selectPaymentMethod(method);
+            
+            // Add to first or second row
+            if (index < 2) {
+              row1.appendChild(card);
+            } else {
+              row2.appendChild(card);
+            }
+          });
+          
+          container.appendChild(row1);
+          container.appendChild(row2);
+        })
+        .catch(error => {
+          console.error("Error loading payment methods:", error);
+          container.innerHTML += '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Error loading payment methods</div>';
+        });
+    }
+    
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+    
+    function selectPaymentMethod(method) {
+      selectedPaymentMethod = method;
+      currentAdminId = method.adminId;
+      
+      // Highlight selected card
+      document.querySelectorAll(".payment-card").forEach(card => {
+        card.classList.remove("selected");
+      });
+      event.currentTarget.classList.add("selected");
+      
+      // Get logo for selected method
+      let logoUrl = '';
+      if (method.method === 'Bkash') {
+        logoUrl = 'https://i.postimg.cc/23RB6p5w/Clipped-image-20250509-020202.png';
+      } else if (method.method === 'Nagad') {
+        logoUrl = 'https://i.postimg.cc/mZcXtQDz/Nagad-Logo-wine.png';
+      } else if (method.method === 'Rocket') {
+        logoUrl = 'https://i.postimg.cc/sXLhkGdb/Clipped-image-20250509-020123.png';
+      } else if (method.method === 'Binance Pay') {
+        logoUrl = 'https://i.postimg.cc/t4b2SwzW/binance-icon-logo-png-seeklogo-598330.png';
+      }
+      
+      // Show selected method info
+      const selectedCard = document.getElementById("selected-method-card");
+      selectedCard.innerHTML = `
+        <h5><img src="${logoUrl}" class="payment-logo"> ${method.method}</h5>
+        <p><strong><i class="fas fa-credit-card"></i> Number:</strong> ${method.accountNumber}</p>
+        <p><strong><i class="fas fa-info-circle"></i> Note:</strong> ${method.message || 'No additional message'}</p>
+        <span class="account-type">${method.accountType || 'Personal'}</span>
+      `;
+      
+      document.getElementById("selected-method-info").style.display = 'block';
+    }
+
+    function processDeposit() {
+      const amount = parseFloat(document.getElementById("deposit-amount").value);
+      const transactionId = document.getElementById("transaction-id").value;
+      const fromNumber = document.getElementById("from-number").value;
+      
+      if (!amount || isNaN(amount)) {
+        alert("Please enter a valid amount");
+        return;
+      }
+
+      if (!selectedPaymentMethod) {
+        alert("Please select a payment method");
+        return;
+      }
+
+      if (!transactionId) {
+        alert("Please enter transaction ID");
+        return;
+      }
+
+      if (!fromNumber) {
+        alert("Please enter sender number");
+        return;
+      }
+
+      showSpinner(true);
+
+      const uid = auth.currentUser.uid;
+      
+      // First get user data to check current balance
+      db.ref("users/" + uid).once('value').then(snapshot => {
+        const user = snapshot.val();
+        const currentBalance = user?.balance || 0;
+        
+        // Create deposit transaction
+        const transaction = {
+          userId: uid,
+          type: "Deposit",
+          amount: amount,
+          method: selectedPaymentMethod.method,
+          accountNumber: selectedPaymentMethod.accountNumber,
+          transactionId: transactionId,
+          fromNumber: fromNumber,
+          date: new Date().toLocaleString(),
+          status: "pending",
+          adminApproved: false,
+          previousBalance: currentBalance,
+          newBalance: currentBalance + amount,
+          adminId: currentAdminId,
+          adminName: selectedPaymentMethod.adminName || "Admin"
+        };
+        
+        // Save to transactions
+        const newTransactionRef = db.ref("transactions").push();
+        return newTransactionRef.set(transaction)
+          .then(() => {
+            // Create deposit request for the admin
+            const depositRequest = {
+              userId: uid,
+              amount: amount,
+              method: selectedPaymentMethod.method,
+              transactionId: transactionId,
+              fromNumber: fromNumber,
+              date: new Date().toLocaleString(),
+              status: "pending",
+              transactionKey: newTransactionRef.key,
+              userName: auth.currentUser.displayName || "User",
+              userPhone: document.getElementById("profile-phone").value || "N/A"
+            };
+            
+            // Push to the selected admin's depositRequests
+            return db.ref(`admins/${currentAdminId}/depositRequests`).push(depositRequest);
+          });
+      })
+      .then(() => {
+        showSpinner(false);
+        alert("Deposit request submitted! Wait for admin approval.");
+        // Clear form fields
+        document.getElementById("deposit-amount").value = "";
+        document.getElementById("transaction-id").value = "";
+        document.getElementById("from-number").value = "";
+        hideAllPopups();
+      })
+      .catch(error => {
+        showSpinner(false);
+        console.error("Error processing deposit:", error);
+        alert("Error: " + error.message);
+      });
+    }
+
+    function showDepositPage() {
+      hideAllPopups();
+      document.getElementById("overlay").style.display = 'block';
+      document.getElementById("deposit-popup").style.display = 'block';
+      loadRandomPaymentMethods();
+      setActiveNavButton('');
+    }
+
+    function showWithdrawPage() {
+      const uid = auth.currentUser.uid;
+      db.ref("users/" + uid).once('value').then(snapshot => {
+        const data = snapshot.val();
+        const balance = data?.balance || 0;
+        document.getElementById("withdraw-balance").innerText = "৳" + balance;
+        
+        hideAllPopups();
+        document.getElementById("overlay").style.display = 'block';
+        document.getElementById("withdraw-popup").style.display = 'block';
+        setActiveNavButton('nav-withdraw');
+      }).catch(error => {
+        console.error("Error fetching balance:", error);
+        document.getElementById("withdraw-balance").innerText = "৳0";
+        
+        hideAllPopups();
+        document.getElementById("overlay").style.display = 'block';
+        document.getElementById("withdraw-popup").style.display = 'block';
+        setActiveNavButton('nav-withdraw');
+      });
+    }
+
+    function processWithdraw() {
+      const amount = parseFloat(document.getElementById("withdraw-amount").value);
+      const method = document.getElementById("withdraw-method").value;
+      const accountNumber = document.getElementById("account-number").value;
+      
+      if (!amount || isNaN(amount) || amount <= 0) {
+        alert("Please enter a valid amount");
+        return;
+      }
+
+      if (!accountNumber) {
+        alert("Please enter your account number/ID");
+        return;
+      }
+
+      showSpinner(true);
+
+      const uid = auth.currentUser.uid;
+      
+      db.ref("users/" + uid).once('value').then(snapshot => {
+        const user = snapshot.val();
+        const currentBalance = user?.balance || 0;
+        
+        if (currentBalance < amount) {
+          showSpinner(false);
+          alert("Insufficient balance");
+          return;
+        }
+
+        // First get all admins who can process this withdrawal method
+        return db.ref("admins").orderByChild("canProcessWithdrawals").equalTo(true).once('value')
+          .then(adminSnapshot => {
+            const availableAdmins = [];
+            adminSnapshot.forEach(admin => {
+              const adminData = admin.val();
+              if (adminData.withdrawMethods && adminData.withdrawMethods[method]) {
+                availableAdmins.push({ 
+                  id: admin.key, 
+                  ...adminData,
+                  methodDetails: adminData.withdrawMethods[method]
+                });
+              }
+            });
+            
+            if (availableAdmins.length === 0) {
+              throw new Error("No admin available to process this withdrawal method. Please try another method.");
+            }
+            
+            // Select random admin from available admins
+            const randomAdmin = availableAdmins[Math.floor(Math.random() * availableAdmins.length)];
+            
+            // Create transaction record
+            const transaction = {
+              userId: uid,
+              type: "Withdrawal",
+              amount: amount,
+              method: method,
+              accountNumber: accountNumber,
+              date: new Date().toLocaleString(),
+              status: "pending",
+              adminApproved: false,
+              previousBalance: currentBalance,
+              newBalance: currentBalance - amount,
+              adminId: randomAdmin.id,
+              adminName: randomAdmin.name || "Admin",
+              withdrawMethodId: randomAdmin.methodDetails.id
+            };
+            
+            // Save to transactions
+            const newTransactionRef = db.ref("transactions").push();
+            return newTransactionRef.set(transaction)
+              .then(() => {
+                // Create withdraw request for the selected admin
+                const withdrawRequest = {
+                  userId: uid,
+                  amount: amount,
+                  method: method,
+                  accountNumber: accountNumber,
+                  date: new Date().toLocaleString(),
+                  status: "pending",
+                  transactionKey: newTransactionRef.key,
+                  userName: auth.currentUser.displayName || "User",
+                  userPhone: document.getElementById("profile-phone").value || "N/A",
+                  withdrawMethodId: randomAdmin.methodDetails.id
+                };
+                
+                // Push to the selected admin's withdrawRequests
+                return db.ref(`admins/${randomAdmin.id}/withdrawRequests`).push(withdrawRequest);
+              });
+          });
+      })
+      .then(() => {
+        showSpinner(false);
+        alert("Withdraw request submitted! Wait for admin approval.");
+        // Clear form fields
+        document.getElementById("withdraw-amount").value = "";
+        document.getElementById("account-number").value = "";
+        hideAllPopups();
+      })
+      .catch(error => {
+        showSpinner(false);
+        console.error("Error processing withdrawal:", error);
+        alert("Error: " + error.message);
+      });
+    }
+
+    function showHistory() {
+      const uid = auth.currentUser.uid;
+      db.ref("transactions").orderByChild("userId").equalTo(uid).on('value', (snapshot) => {
+        const transactions = snapshot.val();
+        const historyList = document.getElementById("history-list");
+        historyList.innerHTML = "";
+        
+        if (transactions) {
+          const transactionsArray = Object.entries(transactions).map(([key, value]) => ({ key, ...value }));
+          transactionsArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+          
+          transactionsArray.forEach(transaction => {
+            const statusClass = transaction.status === 'pending' ? 'status-pending' : 
+                              transaction.status === 'confirmed' ? 'status-confirmed' : 'status-rejected';
+            
+            const transactionCard = document.createElement("div");
+            transactionCard.className = "transaction-card";
+            
+            const balanceInfo = transaction.type === "Withdrawal" ? 
+              `<p><strong><i class="fas fa-wallet"></i> Previous Balance:</strong> ৳${transaction.previousBalance || 'N/A'}</p>
+               <p><strong><i class="fas fa-wallet"></i> New Balance:</strong> ৳${transaction.newBalance || 'N/A'}</p>` : '';
+            
+            transactionCard.innerHTML = `
+              <h5><i class="fas fa-${transaction.type === 'Deposit' ? 'coins' : 'money-bill-wave'}"></i> ${transaction.type} - ৳${transaction.amount}</h5>
+              <p><strong><i class="fas fa-info-circle"></i> Status:</strong> <span class="${statusClass}">${transaction.status || 'pending'}</span></p>
+              <p><strong><i class="fas fa-calendar-alt"></i> Date:</strong> ${transaction.date}</p>
+              ${transaction.method ? `<p><strong><i class="fas fa-credit-card"></i> Method:</strong> ${transaction.method}</p>` : ''}
+              ${transaction.transactionId ? `<p><strong><i class="fas fa-receipt"></i> Transaction ID:</strong> ${transaction.transactionId}</p>` : ''}
+              ${transaction.accountNumber ? `<p><strong><i class="fas fa-id-card"></i> Account:</strong> ${transaction.accountNumber}</p>` : ''}
+              ${balanceInfo}
+              ${transaction.adminName ? `<p><strong><i class="fas fa-user-tie"></i> Processed By:</strong> ${transaction.adminName}</p>` : ''}
+            `;
+            historyList.appendChild(transactionCard);
+          });
+        } else {
+          historyList.innerHTML = `<div class="text-center py-4"><i class="fas fa-history fa-2x mb-3"></i><p>No transaction history found</p></div>`;
+        }
+      });
+      
+      hideAllPopups();
+      document.getElementById("overlay").style.display = 'block';
+      document.getElementById("history-popup").style.display = 'block';
+      setActiveNavButton('nav-history');
+    }
+
+    function togglePopupMenu() {
+      const menu = document.getElementById("popup-menu");
+      const overlay = document.getElementById("overlay");
+      
+      if (menu.style.display === 'block') {
+        menu.style.display = 'none';
+        overlay.style.display = 'none';
+      } else {
+        menu.style.display = 'block';
+        overlay.style.display = 'block';
+        
+        const uid = auth.currentUser?.uid;
+        if (uid) {
+          db.ref("users/" + uid).once('value').then(snapshot => {
+            const data = snapshot.val();
+            const balance = data?.balance || 0;
+            document.getElementById("popup-balance").innerText = "Balance: ৳" + balance;
+          }).catch(error => {
+            console.error("Error fetching balance:", error);
+          });
+        }
+      }
+    }
+
+    function loginUser() {
+      const email = document.getElementById("login-email").value;
+      const password = document.getElementById("login-password").value;
+      
+      if (!email || !password) {
+        alert("Please enter both email and password");
+        return;
+      }
+      
+      showSpinner(true);
+      
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          showSpinner(false);
+          showHome();
+        })
+        .catch(err => {
+          showSpinner(false);
+          alert("Login failed! " + err.message);
+        });
+    }
+
+    function registerUser() {
+      const name = document.getElementById("name").value;
+      const phone = document.getElementById("phone").value;
+      const email = document.getElementById("register-email").value;
+      const password = document.getElementById("register-password").value;
+      
+      if (!name || !phone || !email || !password) {
+        alert("Please fill all fields");
+        return;
+      }
+      
+      showSpinner(true);
+      
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(() => {
+          const uid = auth.currentUser.uid;
+          db.ref("users/" + uid).set({
+            name,
+            phone,
+            email,
+            balance: 0
+          });
+          showSpinner(false);
+          alert("Registration successful");
+          showForm("login-form");
+        })
+        .catch(err => {
+          showSpinner(false);
+          alert(err.message);
+        });
+    }
+
+    function sendPasswordReset() {
+      const email = document.getElementById("reset-email").value;
+      
+      if (!email) {
+        alert("Please enter your email");
+        return;
+      }
+      
+      showSpinner(true);
+      
+      auth.sendPasswordResetEmail(email)
+        .then(() => {
+          showSpinner(false);
+          alert("Password reset email sent!");
+        })
+        .catch(err => {
+          showSpinner(false);
+          alert(err.message);
+        });
+    }
+
+    function logoutUser() {
+      showSpinner(true);
+      auth.signOut()
+        .then(() => {
+          showSpinner(false);
+          showForm("login-form");
+        })
+        .catch(err => {
+          showSpinner(false);
+          alert("Error logging out: " + err.message);
+        });
+    }
+
+    function showHome() {
+      const uid = auth.currentUser.uid;
+      db.ref("users/" + uid).once('value').then(snapshot => {
+        const data = snapshot.val();
+        const balance = data?.balance || 0;
+        document.getElementById("balance-display").innerText = "৳" + balance;
+        
+        // Update profile button
+        const profileBtn = document.getElementById("profile-btn");
+        if (data?.photoURL) {
+          profileBtn.innerHTML = `<img src="${data.photoURL}" alt="Profile">`;
+        } else {
+          profileBtn.innerHTML = `<i class="fas fa-user"></i>`;
+        }
+        
+        // Load banner images
+        loadBannerImages();
+        
+        showForm("home-page");
+        setActiveNavButton('nav-home');
+      }).catch(error => {
+        console.error("Error fetching balance:", error);
+        document.getElementById("balance-display").innerText = "৳0";
+        showForm("home-page");
+        setActiveNavButton('nav-home');
+      });
+    }
+
+    function loadBannerImages() {
+      db.ref("bannerImages").once('value').then(snapshot => {
+        const images = snapshot.val();
+        const bannerSlider = document.getElementById("banner-slider");
+        bannerSlider.innerHTML = '';
+        
+        if (images && images.length > 0) {
+          bannerImages = images;
+          
+          // Add slides
+          bannerImages.forEach((imageUrl, index) => {
+            const slide = document.createElement('div');
+            slide.className = 'banner-slide';
+            slide.innerHTML = `<img src="${imageUrl}" alt="Banner ${index + 1}">`;
+            bannerSlider.appendChild(slide);
+          });
+          
+          // Start auto slide if multiple images
+          if (bannerImages.length > 1) {
+            clearInterval(bannerInterval);
+            bannerInterval = setInterval(() => {
+              currentBannerIndex = (currentBannerIndex + 1) % bannerImages.length;
+              bannerSlider.style.transform = `translateX(-${currentBannerIndex * 100}%)`;
+            }, 5000);
+          }
+        } else {
+          // Default banner if none in database
+          bannerSlider.innerHTML = `
+            <div class="banner-slide">
+              <img src="https://i.postimg.cc/9f3TghpB/Wallpaper-Kemra-Black-Wood-1-jpg-optimal.jpg" alt="Default Banner">
+            </div>
+          `;
+        }
+      }).catch(error => {
+        console.error("Error loading banner images:", error);
+      });
+    }
+
+    function showProfile() {
+      const uid = auth.currentUser.uid;
+      db.ref("users/" + uid).once('value').then(snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          document.getElementById("profile-name").value = data.name || "";
+          document.getElementById("profile-phone").value = data.phone || "";
+          document.getElementById("profile-email").value = data.email || "";
+          
+          // Update profile avatar
+          const profileAvatar = document.getElementById("profile-avatar");
+          if (data.photoURL) {
+            profileAvatar.innerHTML = `<img src="${data.photoURL}" alt="Profile">`;
+          } else {
+            profileAvatar.innerHTML = `<i class="fas fa-user"></i>`;
+          }
+          profileAvatar.innerHTML += `<div class="add-photo" onclick="showProfileGallery()"><i class="fas fa-plus"></i></div>`;
+        }
+        
+        hideAllPopups();
+        document.getElementById("overlay").style.display = 'block';
+        document.getElementById("profile-popup").style.display = 'block';
+      }).catch(error => {
+        console.error("Error fetching profile:", error);
+        
+        hideAllPopups();
+        document.getElementById("overlay").style.display = 'block';
+        document.getElementById("profile-popup").style.display = 'block';
+      });
+    }
+    
+    function showProfileGallery() {
+      const gallery = document.getElementById("profile-gallery");
+      gallery.innerHTML = '';
+      
+      // Add profile images to gallery
+      profileImages.forEach((imageUrl, index) => {
+        const item = document.createElement('div');
+        item.className = 'profile-gallery-item';
+        item.innerHTML = `<img src="${imageUrl}" alt="Profile ${index + 1}">`;
+        item.onclick = () => selectProfileImage(imageUrl);
+        gallery.appendChild(item);
+      });
+      
+      hideAllPopups();
+      document.getElementById("overlay").style.display = 'block';
+      document.getElementById("profile-gallery-popup").style.display = 'block';
+    }
+    
+    function selectProfileImage(imageUrl) {
+      const uid = auth.currentUser.uid;
+      
+      // Update user profile with selected image
+      db.ref(`users/${uid}`).update({
+        photoURL: imageUrl
+      }).then(() => {
+        // Update profile button and avatar
+        const profileBtn = document.getElementById("profile-btn");
+        profileBtn.innerHTML = `<img src="${imageUrl}" alt="Profile">`;
+        
+        const profileAvatar = document.getElementById("profile-avatar");
+        profileAvatar.innerHTML = `<img src="${imageUrl}" alt="Profile">`;
+        profileAvatar.innerHTML += `<div class="add-photo" onclick="showProfileGallery()"><i class="fas fa-plus"></i></div>`;
+        
+        hideAllPopups();
+        alert("Profile picture updated successfully!");
+      }).catch(error => {
+        console.error("Error updating profile picture:", error);
+        alert("Error updating profile picture. Please try again.");
+      });
+    }
+    
+    function changePassword() {
+      const newPassword = document.getElementById("new-password").value;
+      if (newPassword) {
+        showSpinner(true);
+        const user = auth.currentUser;
+        user.updatePassword(newPassword)
+          .then(() => {
+            showSpinner(false);
+            alert("Password updated successfully");
+            document.getElementById("new-password").value = "";
+          })
+          .catch(err => {
+            showSpinner(false);
+            alert("Error updating password: " + err.message);
+          });
+      } else {
+        alert("Please enter a new password");
+      }
+    }
+    
+    function showContactPage() {
+      hideAllPopups();
+      document.getElementById("overlay").style.display = 'block';
+      document.getElementById("contact-popup").style.display = 'block';
+      setActiveNavButton('nav-contact');
+    }
+    
+    function openLink(linkType) {
+      // In a real app, these links would come from Firebase
+      let url = '';
+      
+      switch(linkType) {
+        case 'facebook':
+          url = 'https://facebook.com';
+          break;
+        case 'messenger':
+          url = 'https://m.me/example';
+          break;
+        case 'whatsapp_group':
+          url = 'https://chat.whatsapp.com/example';
+          break;
+        case 'whatsapp_support':
+          url = 'https://wa.me/1234567890';
+          break;
+        case 'telegram_group':
+          url = 'https://t.me/example';
+          break;
+        case 'telegram_support':
+          url = 'https://t.me/example_support';
+          break;
+        default:
+          url = '#';
+      }
+      
+      window.open(url, '_blank');
+    }
+    
+    function setActiveNavButton(activeId) {
+        ['nav-home', 'nav-history', 'nav-withdraw', 'nav-contact'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.classList.remove('active');
+            }
+        });
+        
+        const activeBtn = document.getElementById(activeId);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    }
+    
+    function showSpinner(show) {
+      document.getElementById("spinner").style.display = show ? 'flex' : 'none';
+    }
+
+    function playGame(gameName) {
+      alert(`Starting ${gameName} game...`);
+      // Here you would normally redirect to the game page or open a game interface
+      // For now we'll just show an alert
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (user) showHome();
+      else showForm("login-form");
+    });
+    
+
+  let currentBannerIndex = 0;
+  let totalSlides = 0;
+  let bannerSlideInterval;
+
+  function loadBannerImages() {
+    db.ref('banners').once('value').then((snapshot) => {
+      const images = snapshot.val();
+      const slider = document.getElementById('banner-slider');
+      slider.innerHTML = '';
+
+      if (images && Array.isArray(images)) {
+        totalSlides = images.length;
+
+        images.forEach((url) => {
+          const slide = document.createElement('div');
+          slide.className = 'banner-slide';
+          slide.innerHTML = `<img src="${url}" alt="Banner" style="width:100%;height:100%;object-fit:cover;">`;
+          slider.appendChild(slide);
+        });
+
+        currentBannerIndex = 0; // নিশ্চিতভাবে শুরু থেকে শুরু করা
+        updateSlide(); // প্রথম স্লাইড দেখানো
+
+        // আগের interval থাকলে clear করে দিচ্ছি
+        if (bannerSlideInterval) clearInterval(bannerSlideInterval);
+
+        startBannerAutoSlide(); // অটো স্লাইড
+        enableBannerTouch();    // টাচ সাপোর্ট
+      }
+    });
+  }
+
+  function updateSlide() {
+    const slider = document.getElementById('banner-slider');
+    slider.style.transform = `translateX(-${currentBannerIndex * 100}%)`;
+  }
+
+  function startBannerAutoSlide() {
+    bannerSlideInterval = setInterval(() => {
+      currentBannerIndex = (currentBannerIndex + 1) % totalSlides;
+      updateSlide();
+    }, 6000); // ৬ সেকেন্ড পর পর একটিই স্লাইড
+  }
+
+  function enableBannerTouch() {
+    const slider = document.getElementById('banner-slider');
+    let startX = 0;
+
+    slider.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+    });
+
+    slider.addEventListener('touchend', (e) => {
+      const endX = e.changedTouches[0].clientX;
+      const diff = startX - endX;
+
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) {
+          currentBannerIndex = (currentBannerIndex + 1) % totalSlides;
+        } else {
+          currentBannerIndex = (currentBannerIndex - 1 + totalSlides) % totalSlides;
+        }
+        updateSlide();
+      }
+    });
+  }
+
+  window.addEventListener('load', loadBannerImages);
+
+  function openLink(platform) {
+    db.ref('links/' + platform).once('value').then((snapshot) => {
+      const url = snapshot.val();
+      if (url) {
+        window.open(url, '_blank');
+      } else {
+        alert('Link not available for ' + platform);
+      }
+    }).catch((error) => {
+      console.error('Error fetching link:', error);
+    });
+  }
+  
+
+  </script>
+</body>
+</html>
