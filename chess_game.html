@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +8,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -458,7 +460,7 @@
     </div>
 
     <script>
-        // Firebase কনফিগারেশন (আপনার মূল অ্যাপের সাথে মিলিয়ে নিন)
+        // Firebase কনফিগারেশন
         const firebaseConfig = {
             apiKey: "AIzaSyCS5nlNZ-SA5erCj0Cf1v5KWhfnmcfPmRw",
             authDomain: "high--call-message.firebaseapp.com",
@@ -473,23 +475,30 @@
         // Firebase ইনিশিয়ালাইজ
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+        const auth = firebase.auth();
 
         // গেম ভেরিয়েবল
         let gameId;
-        let playerId;
-        let currentPlayer;
+        let playerId; // This is 1 or 2 from URL
+        let playerColor; // 'white' or 'black'
+        let currentPlayerTurn; // 1 or 2 (whose turn it is)
         let chessBoard = [];
         let selectedPiece = null;
         let possibleMoves = [];
         let gameRef;
         let chatRef;
         let isBoardFlipped = false;
-        let playerTimer = 1800; // 30 minutes in seconds
+        
+        let playerTimer = 1800; 
         let opponentTimer = 1800;
         let playerTimerInterval;
         let opponentTimerInterval;
+        
         let playerName = "আপনি";
         let opponentName = "প্রতিপক্ষ";
+        let playerPhotoUrl = '';
+        let opponentPhotoUrl = '';
+
         let isGameStarted = false;
         let lastMove = null;
         let checkStatus = { white: false, black: false };
@@ -500,15 +509,13 @@
         let enPassantTarget = null;
         let halfMoveClock = 0;
         let fullMoveNumber = 1;
-        let gameStatus = 'ongoing';
-        let rewardAmount = 0;
-        let playerPhotoUrl = '';
-        let opponentPhotoUrl = '';
+        let gameInternalStatus = 'ongoing'; // 'ongoing', 'whiteWon', 'blackWon', 'stalemate', 'draw'
+        let rewardAmountDisplay = 0; // For display purposes, actual calculation by RealMoneyGame.html
 
-        // URL থেকে গেম আইডি এবং প্লেয়ার আইডি পড়া
+        // URL থেকে গেম আইডি, প্লেয়ার আইডি এবং এন্ট্রি ফি পড়া
         const urlParams = new URLSearchParams(window.location.search);
         gameId = urlParams.get('gameId');
-        playerId = parseInt(urlParams.get('playerId')) || 1;
+        playerId = parseInt(urlParams.get('playerId')); // 1 or 2
         const entryFee = parseFloat(urlParams.get('entryFee')) || 0;
 
         // DOM এলিমেন্ট
@@ -535,46 +542,56 @@
         });
 
         // গেম শুরু
-        if (gameId) {
+        if (gameId && playerId) {
             initializeGame();
         } else {
-            statusElement.textContent = 'গেম আইডি পাওয়া যায়নি!';
+            statusElement.textContent = 'গেম আইডি বা প্লেয়ার আইডি পাওয়া যায়নি!';
         }
 
         function initializeGame() {
-            // Firebase থেকে ব্যবহারকারীর তথ্য লোড করুন
-            const user = firebase.auth().currentUser;
-            if (user) {
-                database.ref('users/' + user.uid).once('value').then(snapshot => {
-                    const userData = snapshot.val();
-                    playerName = userData?.name || "আপনি";
-                    playerPhotoUrl = userData?.photoURL || '';
-                    updatePlayerInfo();
-                });
-            }
-
             gameRef = database.ref('games/' + gameId);
             chatRef = database.ref('chats/' + gameId);
             
-            chessBoard = createInitialBoard();
+            // Player 1 is white, Player 2 is black
+            playerColor = (playerId === 1) ? 'white' : 'black';
+            isBoardFlipped = (playerColor === 'black');
+
+            // Fetch current user's data for their own display
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+                database.ref('users/' + currentUser.uid).once('value').then(snapshot => {
+                    const userData = snapshot.val();
+                    if (userData) {
+                        playerName = userData.name || "আপনি";
+                        playerPhotoUrl = userData.photoURL || '';
+                        updatePlayerInfoDisplay();
+                    }
+                });
+            }
             
             setupGameListeners();
             setupChatListeners();
             
-            // UI আপডেট
             gameArea.style.display = 'block';
-            
-            // বোর্ড ফ্লিপ করা (প্লেয়ার 2 হলে)
-            isBoardFlipped = playerId === 2;
-            
+            rewardAmountElement.textContent = entryFee * 2; // Display potential reward
             updateTimerDisplay();
-            rewardAmountElement.textContent = entryFee * 2; // 2 জন খেলোয়াড়ের জন্য পুরস্কার
         }
 
-        function updatePlayerInfo() {
+        function updatePlayerInfoDisplay() {
             playerNameDisplay.textContent = playerName;
             if (playerPhotoUrl) {
                 playerImage.innerHTML = `<img src="${playerPhotoUrl}" alt="Profile">`;
+            } else {
+                playerImage.innerHTML = `<i class="fas fa-user"></i>`;
+            }
+        }
+        
+        function updateOpponentInfoDisplay() {
+            opponentNameDisplay.textContent = opponentName;
+            if (opponentPhotoUrl) {
+                opponentImage.innerHTML = `<img src="${opponentPhotoUrl}" alt="Opponent Profile">`;
+            } else {
+                opponentImage.innerHTML = `<i class="fas fa-user"></i>`;
             }
         }
 
@@ -583,29 +600,44 @@
                 const gameData = snapshot.val();
                 
                 if (!gameData) {
-                    statusElement.textContent = 'গেম পাওয়া যায়নি';
+                    statusElement.textContent = 'গেম পাওয়া যায়নি বা শেষ হয়ে গেছে।';
+                    // Disable game interactions if gameData is null
+                    disableGameInteractions();
                     return;
                 }
 
-                if (gameData.status === 'started' || gameData.status === 'waiting') {
-                    currentPlayer = gameData.currentPlayer || 1;
+                if (gameData.status === 'finished') {
+                    statusElement.textContent = 'গেম শেষ। ফলাফল প্রক্রিয়া করা হচ্ছে...';
+                    disableGameInteractions();
+                     setTimeout(() => {
+                        if (window.opener && window.opener.location.href.includes("RealMoneyGame.html")) {
+                             window.close(); // Close if opened by RealMoneyGame
+                        } else {
+                             window.location.href = 'RealMoneyGame.html'; // Fallback redirect
+                        }
+                    }, 5000);
+                    return;
+                }
+
+                if (gameData.status === 'started' || gameData.status === 'waiting_for_players') { // 'waiting_for_players' might be initial status from RealMoneyGame
                     chessBoard = gameData.board || createInitialBoard();
+                    currentPlayerTurn = gameData.currentPlayer; // 1 or 2
                     
-                    // প্লেয়ার তথ্য আপডেট
                     if (playerId === 1) {
-                        playerTimer = gameData.player1?.timer || 1800;
-                        opponentTimer = gameData.player2?.timer || 1800;
-                        opponentName = gameData.player2?.name || "প্রতিপক্ষ";
-                        opponentPhotoUrl = gameData.player2?.photoURL || '';
+                        playerTimer = gameData.player1.timer;
+                        opponentTimer = gameData.player2.timer;
+                        opponentName = gameData.player2.name || "প্রতিপক্ষ";
+                        opponentPhotoUrl = gameData.player2.photoURL || '';
                     } else {
-                        playerTimer = gameData.player2?.timer || 1800;
-                        opponentTimer = gameData.player1?.timer || 1800;
-                        opponentName = gameData.player1?.name || "প্রতিপক্ষ";
-                        opponentPhotoUrl = gameData.player1?.photoURL || '';
+                        playerTimer = gameData.player2.timer;
+                        opponentTimer = gameData.player1.timer;
+                        opponentName = gameData.player1.name || "প্রতিপক্ষ";
+                        opponentPhotoUrl = gameData.player1.photoURL || '';
                     }
+                    updateOpponentInfoDisplay();
                     
-                    // রিওয়ার্ড আপডেট
-                    rewardAmount = gameData.reward || entryFee * 2;
+                    rewardAmountDisplay = gameData.entryFee * 2; // Assuming 2 players
+                    rewardAmountElement.textContent = rewardAmountDisplay;
                     
                     lastMove = gameData.lastMove;
                     checkStatus = gameData.checkStatus || { white: false, black: false };
@@ -616,29 +648,31 @@
                     enPassantTarget = gameData.enPassantTarget;
                     halfMoveClock = gameData.halfMoveClock || 0;
                     fullMoveNumber = gameData.fullMoveNumber || 1;
-                    gameStatus = gameData.gameStatus || 'ongoing';
+                    gameInternalStatus = gameData.gameInternalStatus || 'ongoing';
                     
-                    // UI আপডেট
-                    opponentNameDisplay.textContent = opponentName;
-                    if (opponentPhotoUrl) {
-                        opponentImage.innerHTML = `<img src="${opponentPhotoUrl}" alt="Profile">`;
-                    }
-                    rewardAmountElement.textContent = rewardAmount;
-                    
-                    // Start timers when both players have joined
-                    if (gameData.gameStarted && !isGameStarted) {
+                    if (gameData.status === 'started' && !isGameStarted) {
                         isGameStarted = true;
-                        if (currentPlayer === playerId) {
+                        if (currentPlayerTurn === playerId) { // If it's this player's turn by URL ID
                             startPlayerTimer();
+                            stopOpponentTimer();
                         } else {
                             startOpponentTimer();
+                            stopPlayerTimer();
                         }
                     }
                     
-                    // Check for winner
                     if (playerTimer <= 0 || opponentTimer <= 0) {
-                        endGame(playerTimer <= 0 ? (playerId === 1 ? 2 : 1) : (playerId === 1 ? 1 : 2));
-                        return;
+                        // Time ran out. Determine winner.
+                        // If playerTimer <=0, current player (whose timer it is) loses.
+                        // The one whose turn it *was* when timer ran out is the loser.
+                        let timedOutPlayer;
+                        if (playerTimer <= 0 && currentPlayerTurn === playerId) timedOutPlayer = playerId;
+                        else if (opponentTimer <= 0 && currentPlayerTurn !== playerId) timedOutPlayer = (playerId === 1 ? 2 : 1);
+                        
+                        if(timedOutPlayer){
+                            endGameByTimeout(timedOutPlayer);
+                            return;
+                        }
                     }
                     
                     renderBoard();
@@ -648,23 +682,36 @@
             });
         }
 
+        function disableGameInteractions() {
+            isGameStarted = false; // Stop timers from running/updating Firebase
+            clearInterval(playerTimerInterval);
+            clearInterval(opponentTimerInterval);
+            // Optionally, make board unclickable
+            const boardElement = document.getElementById('board');
+            if (boardElement) {
+                boardElement.style.pointerEvents = 'none';
+            }
+        }
+
+
         function setupChatListeners() {
             chatRef.on('child_added', (snapshot) => {
                 const message = snapshot.val();
-                addMessageToChat(message.sender, message.text, message.timestamp);
+                addMessageToChat(message.senderId, message.senderName, message.text, message.timestamp);
             });
         }
 
         function createInitialBoard() {
+            // Standard chess starting position
             return [
-                ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
-                ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+                ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'], // Black pieces (row 0)
+                ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'], // Black pawns (row 1)
                 ['', '', '', '', '', '', '', ''],
                 ['', '', '', '', '', '', '', ''],
                 ['', '', '', '', '', '', '', ''],
                 ['', '', '', '', '', '', '', ''],
-                ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
-                ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+                ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'], // White pawns (row 6)
+                ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']  // White pieces (row 7)
             ];
         }
 
@@ -672,20 +719,19 @@
             const boardElement = document.getElementById('board');
             boardElement.innerHTML = '';
             
-            // সারিগুলোকে সঠিক ক্রমে রেন্ডার করুন (ফ্লিপ করা হলে)
-            const rows = isBoardFlipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
-            const cols = isBoardFlipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+            const rowsToRender = isBoardFlipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7];
+            const colsToRender = isBoardFlipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7];
             
-            for (let i = 0; i < 8; i++) {
-                const row = rows[i];
-                for (let j = 0; j < 8; j++) {
-                    const col = cols[j];
+            for (let i_idx = 0; i_idx < 8; i_idx++) {
+                const row = rowsToRender[i_idx];
+                for (let j_idx = 0; j_idx < 8; j_idx++) {
+                    const col = colsToRender[j_idx];
+                    
                     const square = document.createElement('div');
                     square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
                     square.dataset.row = row;
                     square.dataset.col = col;
                     
-                    // শেষ চাল হাইলাইট
                     if (lastMove && (
                         (lastMove.from.row === row && lastMove.from.col === col) ||
                         (lastMove.to.row === row && lastMove.to.col === col)
@@ -693,36 +739,25 @@
                         square.classList.add('last-move');
                     }
                     
-                    // চেক অবস্থা
                     const piece = chessBoard[row][col];
-                    if (piece && piece.toLowerCase() === 'k') {
-                        const color = piece === piece.toLowerCase() ? 'black' : 'white';
-                        if (checkStatus[color]) {
+                    if (piece) {
+                        const pieceColorName = (piece === piece.toUpperCase()) ? 'white' : 'black';
+                        if (piece.toLowerCase() === 'k' && checkStatus[pieceColorName]) {
                             square.classList.add('check');
                         }
-                    }
-                    
-                    // গুটি সেট করা
-                    if (piece) {
-                        const color = piece === piece.toLowerCase() ? 'black' : 'white';
                         square.textContent = getPieceSymbol(piece);
-                        square.classList.add(color);
+                        square.classList.add(pieceColorName); // 'white' or 'black' class for styling piece color
                     }
                     
-                    // নির্বাচিত পিস হাইলাইট
                     if (selectedPiece && selectedPiece.row === row && selectedPiece.col === col) {
                         square.classList.add('selected');
                     }
                     
-                    // সম্ভাব্য মুভ মার্কার
-                    const isPossibleMove = possibleMoves.some(move => 
-                        move.to.row === row && move.to.col === col
-                    );
-                    
-                    if (isPossibleMove) {
-                        if (chessBoard[row][col]) {
+                    const isPossible = possibleMoves.some(move => move.to.row === row && move.to.col === col);
+                    if (isPossible) {
+                        if (chessBoard[row][col]) { // Capture
                             square.classList.add('possible-capture');
-                        } else {
+                        } else { // Move to empty square
                             square.classList.add('possible-move');
                         }
                     }
@@ -735,20 +770,18 @@
 
         function getPieceSymbol(piece) {
             const symbols = {
-                'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
-                'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'
+                'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟', // Black
+                'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'  // White
             };
             return symbols[piece] || '';
         }
 
         function handleSquareClick(row, col) {
-            if (gameStatus !== 'ongoing' || !isGameStarted) return;
+            if (gameInternalStatus !== 'ongoing' || !isGameStarted || currentPlayerTurn !== playerId) return;
             
             const piece = chessBoard[row][col];
             
-            // যদি কোনো গুটি সিলেক্ট করা থাকে
             if (selectedPiece) {
-                // একই স্কয়ার ক্লিক করলে সিলেকশন বাতিল
                 if (selectedPiece.row === row && selectedPiece.col === col) {
                     selectedPiece = null;
                     possibleMoves = [];
@@ -756,850 +789,617 @@
                     return;
                 }
                 
-                // সম্ভাব্য মুভে ক্লিক করলে চাল দাও
-                const isPossibleMove = possibleMoves.some(move => 
-                    move.to.row === row && move.to.col === col
-                );
-                
-                if (isPossibleMove) {
-                    const move = possibleMoves.find(m => 
-                        m.to.row === row && m.to.col === col
-                    );
+                const isPossible = possibleMoves.some(move => move.to.row === row && move.to.col === col);
+                if (isPossible) {
+                    const move = possibleMoves.find(m => m.to.row === row && m.to.col === col);
                     makeMove(move);
                     return;
                 }
             }
             
-            // নতুন গুটি সিলেক্ট করা
             if (piece && isOwnPiece(piece)) {
-                selectedPiece = { row, col };
-                possibleMoves = getPossibleMoves(row, col);
+                selectedPiece = { row, col, piece: piece };
+                possibleMoves = getPossibleMoves(row, col, piece);
+                renderBoard();
+            } else { // Clicked on empty square or opponent's piece without a selected piece
+                selectedPiece = null;
+                possibleMoves = [];
                 renderBoard();
             }
         }
 
         function isOwnPiece(piece) {
-            return (currentPlayer === 1 && piece === piece.toUpperCase()) ||
-                   (currentPlayer === 2 && piece === piece.toLowerCase());
+            const pieceColor = (piece === piece.toUpperCase()) ? 'white' : 'black';
+            return pieceColor === playerColor;
         }
 
+
         function getPossibleMoves(row, col) {
+            // This function should now correctly use playerColor
             const piece = chessBoard[row][col];
             const moves = [];
-            
             if (!piece) return moves;
+
+            // const colorOfPiece = (piece === piece.toUpperCase()) ? 'white' : 'black';
+            // if (colorOfPiece !== playerColor) return moves; // Should not happen if isOwnPiece is checked before calling
+
+            const pieceType = piece.toLowerCase();
             
-            const color = piece === piece.toLowerCase() ? 'black' : 'white';
-            const pieceLower = piece.toLowerCase();
-            
-            switch (pieceLower) {
-                case 'p': // সৈনিক
-                    getPawnMoves(row, col, color, moves);
+            switch (pieceType) {
+                case 'p': getPawnMoves(row, col, playerColor, moves); break;
+                case 'r': getRookMoves(row, col, playerColor, moves); break;
+                case 'n': getKnightMoves(row, col, playerColor, moves); break;
+                case 'b': getBishopMoves(row, col, playerColor, moves); break;
+                case 'q': 
+                    getRookMoves(row, col, playerColor, moves);
+                    getBishopMoves(row, col, playerColor, moves); 
                     break;
-                case 'r': // রথ
-                    getRookMoves(row, col, color, moves);
-                    break;
-                case 'n': // ঘোড়া
-                    getKnightMoves(row, col, color, moves);
-                    break;
-                case 'b': // উট
-                    getBishopMoves(row, col, color, moves);
-                    break;
-                case 'q': // রাণী
-                    getRookMoves(row, col, color, moves);
-                    getBishopMoves(row, col, color, moves);
-                    break;
-                case 'k': // রাজা
-                    getKingMoves(row, col, color, moves);
-                    break;
+                case 'k': getKingMoves(row, col, playerColor, moves); break;
             }
             
-            // চেক এড়ানোর জন্য ফিল্টার
             return moves.filter(move => {
-                // টেম্পরারি বোর্ডে চাল দিই
                 const tempBoard = JSON.parse(JSON.stringify(chessBoard));
-                const tempCastling = JSON.parse(JSON.stringify(castlingRights));
-                const tempEnPassant = enPassantTarget;
+                // const tempCastling = JSON.parse(JSON.stringify(castlingRights));
+                // const tempEnPassant = enPassantTarget;
                 
-                executeMove(move, tempBoard);
+                executeMoveOnBoard(move, tempBoard); // Simplified execute for validation
                 
-                // চেক আছে কিনা দেখি
-                const kingPos = findKing(color, tempBoard);
+                const kingPos = findKing(playerColor, tempBoard);
+                if (!kingPos) return false; // Should not happen if king is on board
+                
                 const isInCheck = isSquareUnderAttack(
                     kingPos.row, kingPos.col, 
-                    color === 'white' ? 'black' : 'white', 
+                    playerColor === 'white' ? 'black' : 'white', 
                     tempBoard
                 );
-                
                 return !isInCheck;
             });
         }
 
-        function getPawnMoves(row, col, color, moves) {
-            const direction = color === 'white' ? -1 : 1;
+        function executeMoveOnBoard(move, board) { // Simplified for validation
+            const piece = board[move.from.row][move.from.col];
+            board[move.to.row][move.to.col] = piece;
+            board[move.from.row][move.from.col] = '';
+
+            if (move.enPassant) {
+                const capturedPawnRow = playerColor === 'white' ? move.to.row + 1 : move.to.row - 1;
+                board[capturedPawnRow][move.to.col] = '';
+            }
+            // Simplified: does not handle castling or promotion for this temp check
+        }
+
+
+        function getPawnMoves(r, c, color, moves) {
+            const dir = color === 'white' ? -1 : 1;
             const startRow = color === 'white' ? 6 : 1;
-            const enemyColor = color === 'white' ? 'black' : 'white';
-            
-            // সামনে এক ঘর
-            if (isValidSquare(row + direction, col) && 
-                chessBoard[row + direction][col] === '') {
-                moves.push(createMove(row, col, row + direction, col));
-                
-                // প্রথমবার দুই ঘর
-                if (row === startRow && 
-                    chessBoard[row + 2*direction][col] === '') {
-                    moves.push(createMove(row, col, row + 2*direction, col));
+            const endRow = color === 'white' ? 0 : 7;
+
+            // Forward 1
+            if (isValidSquare(r + dir, c) && chessBoard[r + dir][c] === '') {
+                moves.push(createMove(r, c, r + dir, c));
+                // Forward 2 from start
+                if (r === startRow && chessBoard[r + 2 * dir][c] === '') {
+                    moves.push(createMove(r, c, r + 2 * dir, c));
                 }
             }
-            
-            // তির্যকভাবে খাওয়া
-            const captureDirections = [[direction, -1], [direction, 1]];
-            for (const [dr, dc] of captureDirections) {
-                const newRow = row + dr;
-                const newCol = col + dc;
-                
-                if (isValidSquare(newRow, newCol)) {
-                    // সাধারণ ক্যাপচার
-                    if (chessBoard[newRow][newCol] !== '' && 
-                        isEnemyPiece(chessBoard[newRow][newCol], color)) {
-                        moves.push(createMove(row, col, newRow, newCol));
+            // Capture
+            for (let dc of [-1, 1]) {
+                if (isValidSquare(r + dir, c + dc)) {
+                    const targetPiece = chessBoard[r + dir][c + dc];
+                    if (targetPiece && isEnemyPiece(targetPiece, color)) {
+                        moves.push(createMove(r, c, r + dir, c + dc));
                     }
-                    
-                    // এন পাসান্ট
-                    if (enPassantTarget && 
-                        enPassantTarget.row === newRow && 
-                        enPassantTarget.col === newCol) {
-                        moves.push({
-                            from: { row, col },
-                            to: { row: newRow, col: newCol },
-                            enPassant: true
-                        });
+                    // En Passant
+                    if (enPassantTarget && enPassantTarget.row === r + dir && enPassantTarget.col === c + dc) {
+                         moves.push({ from: {row: r, col: c}, to: {row: r + dir, col: c + dc}, enPassant: true });
                     }
                 }
             }
         }
 
-        function getRookMoves(row, col, color, moves) {
-            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-            getSlidingMoves(row, col, color, directions, moves);
+        function getRookMoves(r, c, color, moves) {
+            const directions = [[-1,0], [1,0], [0,-1], [0,1]];
+            getSlidingMoves(r, c, color, directions, moves);
         }
 
-        function getKnightMoves(row, col, color, moves) {
-            const knightMoves = [
-                [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-                [1, -2], [1, 2], [2, -1], [2, 1]
-            ];
-            
-            for (const [dr, dc] of knightMoves) {
-                const newRow = row + dr;
-                const newCol = col + dc;
-                
-                if (isValidSquare(newRow, newCol) && 
-                    (chessBoard[newRow][newCol] === '' || 
-                     isEnemyPiece(chessBoard[newRow][newCol], color))) {
-                    moves.push(createMove(row, col, newRow, newCol));
+        function getKnightMoves(r, c, color, moves) {
+            const knightDeltas = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+            for (const [dr, dc] of knightDeltas) {
+                const nr = r + dr;
+                const nc = c + dc;
+                if (isValidSquare(nr, nc) && (chessBoard[nr][nc] === '' || isEnemyPiece(chessBoard[nr][nc], color))) {
+                    moves.push(createMove(r, c, nr, nc));
                 }
             }
         }
 
-        function getBishopMoves(row, col, color, moves) {
-            const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-            getSlidingMoves(row, col, color, directions, moves);
+        function getBishopMoves(r, c, color, moves) {
+            const directions = [[-1,-1],[-1,1],[1,-1],[1,1]];
+            getSlidingMoves(r, c, color, directions, moves);
         }
 
-        function getKingMoves(row, col, color, moves) {
+        function getKingMoves(r, c, color, moves) {
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
                     if (dr === 0 && dc === 0) continue;
-                    
-                    const newRow = row + dr;
-                    const newCol = col + dc;
-                    
-                    if (isValidSquare(newRow, newCol) && 
-                        (chessBoard[newRow][newCol] === '' || 
-                         isEnemyPiece(chessBoard[newRow][newCol], color))) {
-                        moves.push(createMove(row, col, newRow, newCol));
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (isValidSquare(nr, nc) && (chessBoard[nr][nc] === '' || isEnemyPiece(chessBoard[nr][nc], color))) {
+                        moves.push(createMove(r, c, nr, nc));
                     }
                 }
             }
-            
-            // কাস্টলিং
-            getCastlingMoves(row, col, color, moves);
+            getCastlingMoves(r, c, color, moves);
         }
+        
+        function getCastlingMoves(r, c, color, moves) {
+            if (isSquareUnderAttack(r, c, color === 'white' ? 'black' : 'white', chessBoard)) return;
 
-        function getCastlingMoves(row, col, color, moves) {
-            if (isSquareUnderAttack(row, col, color === 'white' ? 'black' : 'white', chessBoard)) {
-                return; // চেক থাকলে কাস্টলিং করা যাবে না
+            const rights = castlingRights[color];
+            // King-side
+            if (rights.kingSide && chessBoard[r][c+1] === '' && chessBoard[r][c+2] === '' &&
+                !isSquareUnderAttack(r, c+1, color === 'white' ? 'black' : 'white', chessBoard) &&
+                !isSquareUnderAttack(r, c+2, color === 'white' ? 'black' : 'white', chessBoard)) {
+                moves.push({ from: {row:r, col:c}, to: {row:r, col:c+2}, castling: 'kingSide' });
             }
-            
-            const side = castlingRights[color];
-            
-            // কিং সাইড কাস্টলিং
-            if (side.kingSide) {
-                let canCastle = true;
-                for (let c = col + 1; c < 7; c++) {
-                    if (chessBoard[row][c] !== '') {
-                        canCastle = false;
-                        break;
-                    }
-                }
-                
-                // রাজা যে ঘরগুলো অতিক্রম করবে সেগুলোতে আক্রমণ আছে কিনা
-                if (canCastle) {
-                    for (let c = col; c <= col + 2; c++) {
-                        if (isSquareUnderAttack(row, c, color === 'white' ? 'black' : 'white', chessBoard)) {
-                            canCastle = false;
-                            break;
-                        }
-                    }
-                }
-                
-                if (canCastle) {
-                    moves.push({
-                        from: { row, col },
-                        to: { row, col: col + 2 },
-                        castling: 'kingSide'
-                    });
-                }
-            }
-            
-            // কুইন সাইড কাস্টলিং
-            if (side.queenSide) {
-                let canCastle = true;
-                for (let c = col - 1; c > 0; c--) {
-                    if (chessBoard[row][c] !== '') {
-                        canCastle = false;
-                        break;
-                    }
-                }
-                
-                // রাজা যে ঘরগুলো অতিক্রম করবে সেগুলোতে আক্রমণ আছে কিনা
-                if (canCastle) {
-                    for (let c = col; c >= col - 2; c--) {
-                        if (isSquareUnderAttack(row, c, color === 'white' ? 'black' : 'white', chessBoard)) {
-                            canCastle = false;
-                            break;
-                        }
-                    }
-                }
-                
-                if (canCastle) {
-                    moves.push({
-                        from: { row, col },
-                        to: { row, col: col - 2 },
-                        castling: 'queenSide'
-                    });
-                }
+            // Queen-side
+            if (rights.queenSide && chessBoard[r][c-1] === '' && chessBoard[r][c-2] === '' && chessBoard[r][c-3] === '' &&
+                !isSquareUnderAttack(r, c-1, color === 'white' ? 'black' : 'white', chessBoard) &&
+                !isSquareUnderAttack(r, c-2, color === 'white' ? 'black' : 'white', chessBoard)) {
+                 moves.push({ from: {row:r, col:c}, to: {row:r, col:c-2}, castling: 'queenSide' });
             }
         }
 
-        function getSlidingMoves(row, col, color, directions, moves) {
+
+        function getSlidingMoves(r, c, color, directions, moves) {
             for (const [dr, dc] of directions) {
-                let newRow = row + dr;
-                let newCol = col + dc;
-                
-                while (isValidSquare(newRow, newCol)) {
-                    if (chessBoard[newRow][newCol] === '') {
-                        moves.push(createMove(row, col, newRow, newCol));
+                let nr = r + dr;
+                let nc = c + dc;
+                while (isValidSquare(nr, nc)) {
+                    if (chessBoard[nr][nc] === '') {
+                        moves.push(createMove(r, c, nr, nc));
                     } else {
-                        if (isEnemyPiece(chessBoard[newRow][newCol], color)) {
-                            moves.push(createMove(row, col, newRow, newCol));
+                        if (isEnemyPiece(chessBoard[nr][nc], color)) {
+                            moves.push(createMove(r, c, nr, nc));
                         }
-                        break;
+                        break; 
                     }
-                    
-                    newRow += dr;
-                    newCol += dc;
+                    nr += dr;
+                    nc += dc;
                 }
             }
         }
 
-        function createMove(fromRow, fromCol, toRow, toCol, specialMove = null) {
-            return {
-                from: { row: fromRow, col: fromCol },
-                to: { row: toRow, col: toCol },
-                ...(specialMove && { [specialMove]: true })
-            };
+        function createMove(fromRow, fromCol, toRow, toCol) {
+            return { from: { row: fromRow, col: fromCol }, to: { row: toRow, col: toCol } };
         }
 
         function isValidSquare(row, col) {
             return row >= 0 && row < 8 && col >= 0 && col < 8;
         }
 
-        function isEnemyPiece(piece, color) {
-            if (!piece) return false;
-            return (color === 'white' && piece === piece.toLowerCase()) ||
-                   (color === 'black' && piece === piece.toUpperCase());
+        function isEnemyPiece(pieceToCheck, ownColor) {
+            if (!pieceToCheck) return false;
+            const pieceToCheckColor = (pieceToCheck === pieceToCheck.toUpperCase()) ? 'white' : 'black';
+            return pieceToCheckColor !== ownColor;
         }
 
-        function executeMove(move, board) {
-            const { from, to } = move;
-            const piece = board[from.row][from.col];
-            const color = piece === piece.toLowerCase() ? 'black' : 'white';
-            
-            // এন পাসান্ট
-            if (move.enPassant) {
-                board[to.row][to.col] = piece;
-                board[from.row][from.col] = '';
-                board[from.row][to.col] = '';
-            } 
-            // কাস্টলিং
-            else if (move.castling) {
-                board[to.row][to.col] = piece;
-                board[from.row][from.col] = '';
-                
-                // রথ সরানো
-                if (move.castling === 'kingSide') {
-                    board[to.row][7] = '';
-                    board[to.row][to.col - 1] = color === 'white' ? 'R' : 'r';
-                } else {
-                    board[to.row][0] = '';
-                    board[to.row][to.col + 1] = color === 'white' ? 'R' : 'r';
-                }
-            } 
-            // সাধারণ চাল
-            else {
-                board[to.row][to.col] = piece;
-                board[from.row][from.col] = '';
-            }
-            
-            return board;
-        }
 
         function makeMove(move) {
-            const { from, to } = move;
-            const piece = chessBoard[from.row][from.col];
-            const color = piece === piece.toLowerCase() ? 'black' : 'white';
+            const pieceToMove = chessBoard[move.from.row][move.from.col];
             
-            // এন পাসান্ট
+            // Actual board update
+            chessBoard[move.from.row][move.from.col] = '';
+            chessBoard[move.to.row][move.to.col] = pieceToMove;
+
+            let promotionPiece = null;
+
+            // Handle special moves for board state
             if (move.enPassant) {
-                chessBoard[to.row][to.col] = piece;
-                chessBoard[from.row][from.col] = '';
-                chessBoard[from.row][to.col] = '';
-            } 
-            // কাস্টলিং
-            else if (move.castling) {
-                chessBoard[to.row][to.col] = piece;
-                chessBoard[from.row][from.col] = '';
-                
-                // রথ সরানো
+                const capturedPawnRow = playerColor === 'white' ? move.to.row + 1 : move.to.row - 1;
+                chessBoard[capturedPawnRow][move.to.col] = ''; 
+            } else if (move.castling) {
                 if (move.castling === 'kingSide') {
-                    chessBoard[to.row][7] = '';
-                    chessBoard[to.row][to.col - 1] = color === 'white' ? 'R' : 'r';
-                } else {
-                    chessBoard[to.row][0] = '';
-                    chessBoard[to.row][to.col + 1] = color === 'white' ? 'R' : 'r';
+                    chessBoard[move.to.row][move.to.col - 1] = chessBoard[move.to.row][7];
+                    chessBoard[move.to.row][7] = '';
+                } else { // queenSide
+                    chessBoard[move.to.row][move.to.col + 1] = chessBoard[move.to.row][0];
+                    chessBoard[move.to.row][0] = '';
                 }
-            } 
-            // সাধারণ চাল
-            else {
-                chessBoard[to.row][to.col] = piece;
-                chessBoard[from.row][from.col] = '';
-                
-                // প্রমোশন
-                if (piece.toLowerCase() === 'p' && (to.row === 0 || to.row === 7)) {
-                    showPromotionModal(to.row, to.col, color);
-                    return;
-                }
+            } else if (pieceToMove.toLowerCase() === 'p' && (move.to.row === 0 || move.to.row === 7)) {
+                // Pawn promotion - show modal and defer rest of makeMove logic
+                showPromotionModal(move.to.row, move.to.col, playerColor, move);
+                return; // Halt further processing until promotion is chosen
             }
-            
-            // এন পাসান্ট টার্গেট সেট করা
+
+            // If not promotion, or promotion handled elsewhere, proceed with common logic
+            finalizeMove(move, pieceToMove, promotionPiece);
+        }
+
+        function finalizeMove(move, originalPiece, promotedToPiece) {
+            const pieceMoved = promotedToPiece || originalPiece;
+
+            // En Passant Target
             enPassantTarget = null;
-            if (piece.toLowerCase() === 'p' && Math.abs(from.row - to.row) === 2) {
-                enPassantTarget = {
-                    row: from.row + (to.row - from.row) / 2,
-                    col: from.col
-                };
+            if (originalPiece.toLowerCase() === 'p' && Math.abs(move.from.row - move.to.row) === 2) {
+                enPassantTarget = { row: (move.from.row + move.to.row) / 2, col: move.from.col };
             }
-            
-            // কাস্টলিং রাইটস আপডেট
-            updateCastlingRights(from, piece);
-            
-            // হাফ মুভ ক্লক (50 মুভ রুল)
-            if (piece.toLowerCase() === 'p' || chessBoard[to.row][to.col] !== '') {
+
+            // Update Castling Rights
+            updateCastlingRights(move.from, originalPiece);
+            if (move.to.row === (playerColor === 'white' ? 0 : 7) && chessBoard[move.to.row][move.to.col].toLowerCase() === 'r') { // if rook captured on its starting square
+                if (move.to.col === 0) castlingRights[playerColor === 'white' ? 'black' : 'white'].queenSide = false;
+                if (move.to.col === 7) castlingRights[playerColor === 'white' ? 'black' : 'white'].kingSide = false;
+            }
+
+
+            // Halfmove clock
+            if (originalPiece.toLowerCase() === 'p' || chessBoard[move.to.row][move.to.col]) { // pawn move or capture
                 halfMoveClock = 0;
             } else {
                 halfMoveClock++;
             }
-            
-            // কালো চাল দিলে ফুল মুভ সংখ্যা বাড়ানো
-            if (currentPlayer === 2) {
+
+            // Fullmove number
+            if (playerColor === 'black') { // Current player is black
                 fullMoveNumber++;
             }
             
-            // শেষ চাল সংরক্ষণ
-            lastMove = move;
+            lastMove = { from: move.from, to: move.to };
             
-            // খেলোয়াড় পরিবর্তন
-            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            const nextPlayerTurn = (currentPlayerTurn === 1) ? 2 : 1;
             
-            // টাইমার আপডেট
-            if (playerId === 1) {
-                clearInterval(playerTimerInterval);
-                startOpponentTimer();
-            } else {
-                clearInterval(opponentTimerInterval);
-                startPlayerTimer();
-            }
+            // Stop own timer, Firebase listener will start opponent's effectively
+            stopPlayerTimer(); 
+            // The listener should handle starting the correct timer based on currentPlayerTurn from Firebase
             
-            // চেক অবস্থা আপডেট
             updateCheckStatus();
-            
-            // গেম স্ট্যাটাস চেক
-            checkGameStatus();
-            
-            // ফায়ারবেজে আপডেট
-            gameRef.update({
+            checkGameEndCondition(); // This will set gameInternalStatus if game ends
+
+            let firebaseUpdates = {
                 board: chessBoard,
-                currentPlayer: currentPlayer,
+                currentPlayer: nextPlayerTurn,
                 lastMove: lastMove,
                 checkStatus: checkStatus,
                 castlingRights: castlingRights,
                 enPassantTarget: enPassantTarget,
                 halfMoveClock: halfMoveClock,
                 fullMoveNumber: fullMoveNumber,
-                gameStatus: gameStatus,
-                [`player${playerId}/timer`]: playerTimer,
-                [`player${playerId === 1 ? 2 : 1}/timer`]: opponentTimer,
+                gameInternalStatus: gameInternalStatus, // e.g., 'ongoing', 'whiteWon'
                 lastMoveTime: firebase.database.ServerValue.TIMESTAMP
-            });
-            
-            // বোর্ড রিফ্রেশ
-            selectedPiece = null;
-            possibleMoves = [];
-            renderBoard();
-            updateStatus();
-        }
+            };
 
-        function showPromotionModal(row, col, color) {
-            const modal = document.getElementById('promotion-modal');
-            const options = document.querySelectorAll('.promotion-option');
-            
-            // কালো গুটির জন্য প্রতীক পরিবর্তন
-            if (color === 'black') {
-                options.forEach(option => {
-                    option.textContent = option.dataset.piece.toLowerCase();
-                    option.classList.remove('white');
-                    option.classList.add('black');
-                });
-            } else {
-                options.forEach(option => {
-                    option.textContent = option.dataset.piece;
-                    option.classList.remove('black');
-                    option.classList.add('white');
-                });
+            // Update player timers in Firebase
+            if (playerId === 1) { // Current client is player 1
+                firebaseUpdates['player1/timer'] = playerTimer;
+            } else { // Current client is player 2
+                firebaseUpdates['player2/timer'] = playerTimer;
             }
             
-            // ইভেন্ট লিসেনার
-            const handlePromotion = (e) => {
-                const selectedPiece = e.target.dataset.piece;
-                const piece = color === 'white' ? selectedPiece : selectedPiece.toLowerCase();
-                
-                chessBoard[row][col] = piece;
-                
-                // মোডাল বন্ধ করা
-                modal.style.display = 'none';
-                options.forEach(option => {
-                    option.removeEventListener('click', handlePromotion);
-                });
-                
-                // খেলোয়াড় পরিবর্তন
-                currentPlayer = currentPlayer === 1 ? 2 : 1;
-                
-                // টাইমার আপডেট
-                if (playerId === 1) {
-                    clearInterval(playerTimerInterval);
-                    startOpponentTimer();
-                } else {
-                    clearInterval(opponentTimerInterval);
-                    startPlayerTimer();
-                }
-                
-                // চেক অবস্থা আপডেট
-                updateCheckStatus();
-                
-                // গেম স্ট্যাটাস চেক
-                checkGameStatus();
-                
-                // ফায়ারবেজে আপডেট
-                gameRef.update({
-                    board: chessBoard,
-                    currentPlayer: currentPlayer,
-                    checkStatus: checkStatus,
-                    gameStatus: gameStatus,
-                    [`player${playerId}/timer`]: playerTimer,
-                    [`player${playerId === 1 ? 2 : 1}/timer`]: opponentTimer,
-                    lastMoveTime: firebase.database.ServerValue.TIMESTAMP
-                });
-                
-                // বোর্ড রিফ্রেশ
-                selectedPiece = null;
-                possibleMoves = [];
-                renderBoard();
-                updateStatus();
-            };
-            
-            options.forEach(option => {
-                option.addEventListener('click', handlePromotion);
+            gameRef.update(firebaseUpdates);
+
+            selectedPiece = null;
+            possibleMoves = [];
+            // renderBoard(); // Will be re-rendered by listener
+            // updateStatus(); // Will be re-rendered by listener
+
+            if (gameInternalStatus !== 'ongoing') {
+                 handleGameEnd();
+            }
+        }
+
+
+        function showPromotionModal(row, col, color, originalMove) {
+            const modal = document.getElementById('promotion-modal');
+            const optionsContainer = document.getElementById('promotion-options');
+            optionsContainer.innerHTML = ''; // Clear previous options
+
+            const piecesToPromoteTo = ['Q', 'R', 'B', 'N'];
+            piecesToPromoteTo.forEach(p => {
+                const optionDiv = document.createElement('div');
+                optionDiv.className = `promotion-option ${color}`;
+                optionDiv.dataset.piece = p;
+                optionDiv.textContent = getPieceSymbol(color === 'white' ? p : p.toLowerCase());
+                optionDiv.onclick = () => {
+                    const promotedPiece = color === 'white' ? p : p.toLowerCase();
+                    chessBoard[row][col] = promotedPiece; // Finalize promotion on board
+                    modal.style.display = 'none';
+                    finalizeMove(originalMove, chessBoard[row][col] /* this is now the pawn */, promotedPiece);
+                };
+                optionsContainer.appendChild(optionDiv);
             });
-            
             modal.style.display = 'block';
         }
 
         function updateCastlingRights(from, piece) {
-            const color = piece === piece.toLowerCase() ? 'black' : 'white';
-            
-            // রাজা নড়লে
-            if (piece.toLowerCase() === 'k') {
-                castlingRights[color].kingSide = false;
-                castlingRights[color].queenSide = false;
-            }
-            
-            // রথ নড়লে
-            if (piece.toLowerCase() === 'r') {
-                if (color === 'white') {
-                    if (from.row === 7 && from.col === 0) {
-                        castlingRights.white.queenSide = false;
-                    } else if (from.row === 7 && from.col === 7) {
-                        castlingRights.white.kingSide = false;
-                    }
-                } else {
-                    if (from.row === 0 && from.col === 0) {
-                        castlingRights.black.queenSide = false;
-                    } else if (from.row === 0 && from.col === 7) {
-                        castlingRights.black.kingSide = false;
-                    }
+            const pieceType = piece.toLowerCase();
+            const pieceColor = (piece === piece.toUpperCase()) ? 'white' : 'black';
+
+            if (pieceType === 'k') {
+                castlingRights[pieceColor].kingSide = false;
+                castlingRights[pieceColor].queenSide = false;
+            } else if (pieceType === 'r') {
+                if (from.row === (pieceColor === 'white' ? 7 : 0)) {
+                    if (from.col === 0) castlingRights[pieceColor].queenSide = false;
+                    if (from.col === 7) castlingRights[pieceColor].kingSide = false;
                 }
             }
         }
-
+        
         function updateCheckStatus() {
-            const whiteKingPos = findKing('white');
-            const blackKingPos = findKing('black');
+            const whiteKingPos = findKing('white', chessBoard);
+            const blackKingPos = findKing('black', chessBoard);
             
-            checkStatus.white = isSquareUnderAttack(
-                whiteKingPos.row, whiteKingPos.col, 'black', chessBoard
-            );
-            
-            checkStatus.black = isSquareUnderAttack(
-                blackKingPos.row, blackKingPos.col, 'white', chessBoard
-            );
-        }
-
-        function findKing(color, board = chessBoard) {
-            const king = color === 'white' ? 'K' : 'k';
-            
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    if (board[row][col] === king) {
-                        return { row, col };
-                    }
-                }
+            if(whiteKingPos) {
+                checkStatus.white = isSquareUnderAttack(whiteKingPos.row, whiteKingPos.col, 'black', chessBoard);
             }
-            
-            return null;
+            if(blackKingPos) {
+                checkStatus.black = isSquareUnderAttack(blackKingPos.row, blackKingPos.col, 'white', chessBoard);
+            }
         }
 
-        function isSquareUnderAttack(row, col, byColor, board) {
-            // সব গুটি চেক করা
+        function findKing(color, boardToSearch) {
+            const kingPiece = color === 'white' ? 'K' : 'k';
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
-                    const piece = board[r][c];
-                    
-                    if (piece && isEnemyPiece(piece, byColor === 'white' ? 'black' : 'white')) {
-                        const moves = getRawMoves(r, c, piece);
-                        
-                        if (moves.some(m => m.to.row === row && m.to.col === col)) {
-                            return true;
+                    if (boardToSearch[r][c] === kingPiece) return { row: r, col: c };
+                }
+            }
+            return null; 
+        }
+
+        function isSquareUnderAttack(r, c, attackerColor, boardToSearch) {
+            for (let R = 0; R < 8; R++) {
+                for (let C = 0; C < 8; C++) {
+                    const piece = boardToSearch[R][C];
+                    if (piece) {
+                        const pieceColor = (piece === piece.toUpperCase()) ? 'white' : 'black';
+                        if (pieceColor === attackerColor) {
+                            const rawMoves = []; // Get raw moves without check validation for this piece
+                            const pieceType = piece.toLowerCase();
+                            // Simplified raw move generation (doesn't need to be perfect, just find if target is attacked)
+                            if (pieceType === 'p') {
+                                const dir = attackerColor === 'white' ? -1 : 1;
+                                if (isValidSquare(R + dir, C - 1)) rawMoves.push(createMove(R,C,R+dir,C-1));
+                                if (isValidSquare(R + dir, C + 1)) rawMoves.push(createMove(R,C,R+dir,C+1));
+                            } else if (pieceType === 'r') getRookMoves(R, C, attackerColor, rawMoves);
+                            else if (pieceType === 'n') getKnightMoves(R, C, attackerColor, rawMoves);
+                            else if (pieceType === 'b') getBishopMoves(R, C, attackerColor, rawMoves);
+                            else if (pieceType === 'q') { getRookMoves(R, C, attackerColor, rawMoves); getBishopMoves(R, C, attackerColor, rawMoves); }
+                            else if (pieceType === 'k') {
+                                for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+                                    if (dr===0 && dc===0) continue;
+                                    if (isValidSquare(R+dr, C+dc)) rawMoves.push(createMove(R,C,R+dr,C+dc));
+                                }
+                            }
+
+                            if (rawMoves.some(m => m.to.row === r && m.to.col === c)) return true;
                         }
                     }
                 }
             }
-            
             return false;
         }
+        
+        function checkGameEndCondition() {
+            const turnColor = (currentPlayerTurn === 1) ? 'white' : 'black'; // Color whose turn it WILL BE
+            const opponentColor = (turnColor === 'white') ? 'black' : 'white';
 
-        function getRawMoves(row, col, piece) {
-            const moves = [];
-            const color = piece === piece.toLowerCase() ? 'black' : 'white';
-            const pieceLower = piece.toLowerCase();
-            
-            switch (pieceLower) {
-                case 'p':
-                    getPawnMoves(row, col, color, moves);
-                    break;
-                case 'r':
-                    getRookMoves(row, col, color, moves);
-                    break;
-                case 'n':
-                    getKnightMoves(row, col, color, moves);
-                    break;
-                case 'b':
-                    getBishopMoves(row, col, color, moves);
-                    break;
-                case 'q':
-                    getRookMoves(row, col, color, moves);
-                    getBishopMoves(row, col, color, moves);
-                    break;
-                case 'k':
-                    getKingMoves(row, col, color, moves);
-                    break;
-            }
-            
-            return moves;
-        }
-
-        function checkGameStatus() {
-            // চেকমেট বা স্টেলমেট চেক
-            const hasLegalMoves = hasLegalMovesForCurrentPlayer();
-            const inCheck = checkStatus[currentPlayer === 1 ? 'white' : 'black'];
-            
-            if (!hasLegalMoves) {
-                if (inCheck) {
-                    gameStatus = currentPlayer === 1 ? 'blackWon' : 'whiteWon';
-                } else {
-                    gameStatus = 'stalemate';
-                }
-            }
-            
-            // 50 মুভ রুল
-            if (halfMoveClock >= 50) {
-                gameStatus = 'draw';
-            }
-            
-            // ইনসাফিসিয়েন্ট মেটেরিয়াল
-            if (isInsufficientMaterial()) {
-                gameStatus = 'draw';
-            }
-        }
-
-        function hasLegalMovesForCurrentPlayer() {
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const piece = chessBoard[row][col];
-                    
-                    if (piece && isOwnPiece(piece)) {
-                        const moves = getPossibleMoves(row, col);
-                        
-                        if (moves.length > 0) {
-                            return true;
+            let hasAnyLegalMoves = false;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = chessBoard[r][c];
+                    if (piece) {
+                        const pieceC = (piece === piece.toUpperCase()) ? 'white' : 'black';
+                        if (pieceC === turnColor) { // Check moves for the player whose turn it is next
+                            if (getPossibleMoves(r, c).length > 0) {
+                                hasAnyLegalMoves = true;
+                                break;
+                            }
                         }
                     }
                 }
+                if (hasAnyLegalMoves) break;
             }
-            
-            return false;
+
+            const kingInCheck = checkStatus[turnColor];
+
+            if (!hasAnyLegalMoves) {
+                if (kingInCheck) { // Checkmate
+                    gameInternalStatus = (turnColor === 'white') ? 'blackWon' : 'whiteWon';
+                } else { // Stalemate
+                    gameInternalStatus = 'stalemate';
+                }
+            } else if (halfMoveClock >= 100) { // 50 moves by each player
+                gameInternalStatus = 'draw'; // 50-move rule
+            } else if (isInsufficientMaterial()) {
+                gameInternalStatus = 'draw';
+            }
         }
+
 
         function isInsufficientMaterial() {
-            let whitePieces = [];
-            let blackPieces = [];
-            
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const piece = chessBoard[row][col];
-                    
-                    if (piece) {
-                        if (piece === piece.toUpperCase()) {
-                            whitePieces.push(piece);
-                        } else {
-                            blackPieces.push(piece);
-                        }
-                    }
-                }
+            // Simplified check for now. True for K vs K, K vs KB, K vs KN
+            // A more comprehensive check would involve counting pieces.
+            const pieces = chessBoard.flat().filter(p => p !== '');
+            if (pieces.length <= 2) return true; // K vs K
+            if (pieces.length === 3) {
+                const pieceTypes = pieces.map(p => p.toLowerCase()).sort().join('');
+                if (pieceTypes === 'bkk' || pieceTypes === 'kkn') return true; // K vs KB or K vs KN
             }
-            
-            // শুধু রাজা বনাম রাজা
-            if (whitePieces.length === 1 && blackPieces.length === 1) {
-                return true;
-            }
-            
-            // রাজা + ঘোড়া বনাম রাজা
-            if ((whitePieces.length === 2 && whitePieces.includes('N') && 
-                 blackPieces.length === 1) ||
-                (blackPieces.length === 2 && blackPieces.includes('n') && 
-                 whitePieces.length === 1)) {
-                return true;
-            }
-            
-            // রাজা + উট বনাম রাজা
-            if ((whitePieces.length === 2 && whitePieces.includes('B') && 
-                 blackPieces.length === 1) ||
-                (blackPieces.length === 2 && blackPieces.includes('b') && 
-                 whitePieces.length === 1)) {
-                return true;
-            }
-            
             return false;
+        }
+
+        function handleGameEnd() {
+            disableGameInteractions();
+            let resultForFirebase;
+            let winningPlayerNumber = 0; // 0 for draw
+
+            if (gameInternalStatus === 'whiteWon') {
+                resultForFirebase = 'player1_won'; // P1 is white
+                winningPlayerNumber = 1;
+            } else if (gameInternalStatus === 'blackWon') {
+                resultForFirebase = 'player2_won'; // P2 is black
+                winningPlayerNumber = 2;
+            } else { // stalemate or draw
+                resultForFirebase = 'draw';
+            }
+            updateStatus(); // Show final status like "White Won!"
+
+            gameRef.update({
+                status: 'finished',
+                result: resultForFirebase,
+                winnerId: winningPlayerNumber, // Store the player number (1 or 2) or 0 for draw
+                endTime: firebase.database.ServerValue.TIMESTAMP
+            });
+            // RealMoneyGame.html will listen for status: 'finished' and handle rewards.
+        }
+        
+        function endGameByTimeout(timedOutPlayerNumber) {
+            if (gameInternalStatus !== 'ongoing') return; // Game already ended
+
+            disableGameInteractions();
+            const winnerPlayerNumber = (timedOutPlayerNumber === 1) ? 2 : 1;
+            gameInternalStatus = (winnerPlayerNumber === 1) ? 'whiteWon' : 'blackWon'; // Assuming P1=White, P2=Black
+            
+            statusElement.textContent = `প্লেয়ার ${timedOutPlayerNumber} টাইম আউট! প্লেয়ার ${winnerPlayerNumber} জয়ী!`;
+            statusElement.style.color = '#4CAF50'; // Or appropriate color
+
+            gameRef.update({
+                status: 'finished',
+                result: (winnerPlayerNumber === 1 ? 'player1_won' : 'player2_won'),
+                winnerId: winnerPlayerNumber,
+                reason: 'timeout',
+                timedOutPlayer: timedOutPlayerNumber,
+                endTime: firebase.database.ServerValue.TIMESTAMP
+            });
         }
 
         function startPlayerTimer() {
             clearInterval(playerTimerInterval);
             playerTimerInterval = setInterval(() => {
-                if (isGameStarted && currentPlayer === playerId) {
-                    playerTimer--;
-                    updateTimerDisplay();
-                    
-                    if (playerTimer <= 0) {
-                        clearInterval(playerTimerInterval);
-                        endGame(playerId === 1 ? 2 : 1);
-                    }
-                    
-                    // Update timer in database
-                    if (gameRef) {
-                        gameRef.update({
-                            [`player${playerId}/timer`]: playerTimer
-                        });
-                    }
+                if (!isGameStarted || currentPlayerTurn !== playerId || gameInternalStatus !== 'ongoing') {
+                    clearInterval(playerTimerInterval);
+                    return;
+                }
+                playerTimer--;
+                updateTimerDisplay();
+                if (playerTimer <= 0) {
+                    endGameByTimeout(playerId);
+                } else if (playerTimer % 5 === 0) { // Update Firebase every 5 seconds
+                     gameRef.update({ [`player${playerId}/timer`]: playerTimer });
                 }
             }, 1000);
+        }
+        function stopPlayerTimer() {
+            clearInterval(playerTimerInterval);
         }
 
         function startOpponentTimer() {
             clearInterval(opponentTimerInterval);
             opponentTimerInterval = setInterval(() => {
-                if (isGameStarted && currentPlayer === (playerId === 1 ? 2 : 1)) {
-                    opponentTimer--;
-                    updateTimerDisplay();
-                    
-                    if (opponentTimer <= 0) {
-                        clearInterval(opponentTimerInterval);
-                        endGame(playerId === 1 ? 1 : 2);
-                    }
-                    
-                    // Update timer in database
-                    if (gameRef) {
-                        gameRef.update({
-                            [`player${playerId === 1 ? 2 : 1}/timer`]: opponentTimer
-                        });
-                    }
+                 if (!isGameStarted || currentPlayerTurn === playerId || gameInternalStatus !== 'ongoing') {
+                    clearInterval(opponentTimerInterval);
+                    return;
+                }
+                opponentTimer--; // This is just for local display, actual time comes from Firebase
+                updateTimerDisplay();
+                if (opponentTimer <= 0) {
+                   // This should be handled by the opponent's client, or server logic
+                   // Or if their timer from Firebase shows 0, this client can declare win.
+                   // endGameByTimeout(playerId === 1 ? 2 : 1); // Declare win if opponent's timer is 0
                 }
             }, 1000);
         }
+        function stopOpponentTimer() {
+            clearInterval(opponentTimerInterval);
+        }
+
 
         function updateTimerDisplay() {
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            };
-            
-            playerTimerElement.textContent = formatTime(playerTimer);
-            opponentTimerElement.textContent = formatTime(opponentTimer);
+            const format = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+            playerTimerElement.textContent = format(playerTimer);
+            opponentTimerElement.textContent = format(opponentTimer);
         }
 
         function updateStatus() {
-            switch (gameStatus) {
-                case 'ongoing':
-                    statusElement.textContent = `${currentPlayer === playerId ? 'আপনার' : 'প্রতিপক্ষের'} পালা`;
-                    if (checkStatus[currentPlayer === 1 ? 'white' : 'black']) {
-                        statusElement.textContent += ' (চেক!)';
-                    }
-                    break;
-                case 'whiteWon':
-                case 'blackWon':
-                    statusElement.textContent = `${
-                        gameStatus === 'whiteWon' ? 'সাদা' : 'কালো'
-                    } চেকমেটে জিতেছে!`;
-                    break;
-                case 'stalemate':
-                    statusElement.textContent = 'স্টেলমেট - ড্র!';
-                    break;
-                case 'draw':
-                    statusElement.textContent = 'ড্র! (50 মুভ রুল বা অপর্যাপ্ত গুটি)';
-                    break;
+            let msg = "";
+            const currentTurnColor = (currentPlayerTurn === 1) ? 'white' : 'black';
+
+            if (gameInternalStatus === 'ongoing') {
+                msg = (currentPlayerTurn === playerId) ? "আপনার পালা" : "প্রতিপক্ষের পালা";
+                if (checkStatus[currentTurnColor]) {
+                    msg += " (চেক!)";
+                }
+            } else if (gameInternalStatus === 'whiteWon') {
+                msg = "সাদা জয়ী!";
+            } else if (gameInternalStatus === 'blackWon') {
+                msg = "কালো জয়ী!";
+            } else if (gameInternalStatus === 'stalemate') {
+                msg = "স্টেলমেট - ড্র!";
+            } else if (gameInternalStatus === 'draw') {
+                msg = "ড্র!";
             }
+            statusElement.textContent = msg;
         }
 
-        function endGame(winnerId) {
-            clearInterval(playerTimerInterval);
-            clearInterval(opponentTimerInterval);
-            isGameStarted = false;
-            
-            if (winnerId === playerId) {
-                gameStatus = playerId === 1 ? 'whiteWon' : 'blackWon';
-                statusElement.textContent = 'আপনি জিতেছেন!';
-                statusElement.style.color = '#4CAF50';
-                
-                // জয়ী খেলোয়াড়কে পুরস্কার প্রদান
-                if (firebase.auth().currentUser) {
-                    const userId = firebase.auth().currentUser.uid;
-                    database.ref('users/' + userId).update({
-                        balance: firebase.database.ServerValue.increment(rewardAmount)
-                    });
-                }
-            } else {
-                gameStatus = playerId === 1 ? 'blackWon' : 'whiteWon';
-                statusElement.textContent = 'আপনি হেরেছেন!';
-                statusElement.style.color = '#F44336';
-            }
-            
-            // ফায়ারবেজে আপডেট
-            if (gameRef) {
-                gameRef.update({
-                    gameStatus: gameStatus,
-                    winner: winnerId,
-                    endTime: firebase.database.ServerValue.TIMESTAMP
-                });
-            }
-            
-            // চ্যাট ডিলিট করা
-            if (chatRef) {
-                chatRef.remove();
-            }
-            
-            // 10 সেকেন্ড পর গেম ডাটা ডিলেট করুন
-            setTimeout(() => {
-                if (gameRef) gameRef.remove();
-            }, 10000);
-        }
 
         function toggleChat() {
             chatContainer.style.display = chatContainer.style.display === 'flex' ? 'none' : 'flex';
             if (chatContainer.style.display === 'flex') {
                 chatMessageInput.focus();
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             }
         }
 
         function sendMessage() {
             const messageText = chatMessageInput.value.trim();
-            if (!messageText || !chatRef) return;
+            if (!messageText || !chatRef || !gameId) return;
             
-            const timestamp = new Date().getTime();
+            const currentUser = auth.currentUser;
+            if (!currentUser) return;
+
             chatRef.push({
-                sender: playerId,
+                senderId: currentUser.uid, // Use Firebase UID for sender ID
+                senderName: playerName, // Use the current player's name
                 text: messageText,
-                timestamp: timestamp
+                timestamp: firebase.database.ServerValue.TIMESTAMP
             });
-            
             chatMessageInput.value = '';
         }
 
-        function addMessageToChat(senderId, text, timestamp) {
+        function addMessageToChat(senderId, senderNameText, text, timestamp) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${
-                senderId === playerId ? 'own-message' : 'opponent-message'
-            }`;
+            const isOwn = auth.currentUser && senderId === auth.currentUser.uid;
             
-            const senderName = senderId === playerId ? playerName : opponentName;
-            const time = new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            messageDiv.className = `message ${isOwn ? 'own-message' : 'opponent-message'}`;
             
-            messageDiv.textContent = `${senderName}: ${text}`;
+            const time = timestamp ? new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+            
+            messageDiv.textContent = `${senderNameText || (isOwn ? 'আপনি' : 'প্রতিপক্ষ')}: ${text} (${time})`;
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
         function exitGame() {
-            if (confirm('আপনি কি নিশ্চিত গেম থেকে বের হতে চান?')) {
-                // গেম থেকে বের হওয়ার লজিক
-                if (gameRef) {
+            if (confirm('আপনি কি নিশ্চিত গেম থেকে বের হতে চান? আপনি হেরে যাবেন।')) {
+                if (gameInternalStatus === 'ongoing' && gameRef) {
+                    const losingPlayer = playerId; // The player exiting
+                    const winningPlayer = (playerId === 1) ? 2 : 1;
+                    
                     gameRef.update({
-                        [`player${playerId}/left`]: true
+                        status: 'finished',
+                        result: (winningPlayer === 1 ? 'player1_won' : 'player2_won'),
+                        winnerId: winningPlayer,
+                        reason: 'abandoned',
+                        abandoningPlayer: losingPlayer,
+                        endTime: firebase.database.ServerValue.TIMESTAMP
+                    }).then(() => {
+                        window.location.href = 'RealMoneyGame.html'; // Or close tab if opened by RealMoneyGame
                     });
+                } else {
+                     window.location.href = 'RealMoneyGame.html';
                 }
-                
-                // মূল অ্যাপে ফিরে যান
-                window.location.href = 'TestRealmoneygame.html';
             }
         }
     </script>
